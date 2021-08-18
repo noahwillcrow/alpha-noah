@@ -25,6 +25,7 @@ def checkWin(board):
 # end stackoverflow thing
 
 from copy import deepcopy
+import csv
 import alpha_noah
 import record_weighting_functions
 import visits_weighting_functions
@@ -54,6 +55,9 @@ def update_state_record(state_hash, did_win, did_draw):
     # let's just not let one player ever learn
     # if state_hash[0] == PLAYER_MARKERS[1]:
     #     return
+
+    # no players ever learn!
+    # return
 
     if state_hash in state_records:
         state_records[state_hash]['wins_count'] += 1 if did_win else 0
@@ -114,7 +118,24 @@ def is_win_state(player_number, current_state):
         return True
 
 if __name__ == '__main__':
-    num_games = 10000
+    num_games = int(input('Enter number of games to simulate: '))
+
+    should_use_custom_weights = input('Do you want to specify the state evaluation weights? ').strip().lower()[:1] == 'y'
+    wins_weight = 10 if not should_use_custom_weights else int(input('Enter weight of wins for state evaluation: '))
+    losses_weight = -10 if not should_use_custom_weights else int(input('Enter weight of losses for state evaluation: '))
+    draws_weight = 5 if not should_use_custom_weights else int(input('Enter weight of draws for state evaluation: '))
+
+    if input('Should learning data be loaded from file? ').strip().lower()[:1] == 'y':
+        saved_state_records_file_path = input('Path to learning data file: ')
+        with open(saved_state_records_file_path, 'r', newline='') as saved_state_records_csv:
+            saved_state_records_reader = csv.reader(saved_state_records_csv)
+            for row in saved_state_records_reader:
+                state_records[row[0]] = {
+                    'wins_count': int(row[1]),
+                    'losses_count': int(row[2]),
+                    'draws_count': int(row[3])
+                }
+
     print('running ' + str(num_games) + ' games of tic tac toe')
 
     win_counts_by_player_number = [0, 0]
@@ -126,7 +147,7 @@ if __name__ == '__main__':
             update_state_record,
             compact_hash_state,
             find_available_states,
-            record_weighting_functions.weighted_sum(10, -10, 5),
+            record_weighting_functions.weighted_sum(wins_weight, losses_weight, draws_weight),
             visits_weighting_functions.one,
             is_draw_state,
             is_win_state
@@ -135,3 +156,16 @@ if __name__ == '__main__':
             win_counts_by_player_number[winning_player] += 1
         
     print('Final results! The x player won ' + str(win_counts_by_player_number[0]) + ' games and the o player won ' + str(win_counts_by_player_number[1]) + ' games')
+
+    if input('Should learning data be saved to a file? ').strip().lower()[:1] == 'y':
+        dest_state_records_file_path = input('Path to save learning data to: ')
+        with open(dest_state_records_file_path, 'w', newline='') as dest_state_records_csv:
+            dest_state_records_writer = csv.writer(dest_state_records_csv)
+            for state_hash in state_records:
+                state_record = state_records[state_hash]
+                dest_state_records_writer.writerow([
+                    state_hash,
+                    state_record['wins_count'],
+                    state_record['losses_count'],
+                    state_record['draws_count'],
+                ])
