@@ -41,21 +41,26 @@ state_records = {}
 def get_state_record(state_hash):
     if state_hash in state_records:
         state_record = state_records[state_hash]
-        return alpha_noah.create_state_record(state_record['wins_count'], state_record['losses_count'])
+        return alpha_noah.create_state_record(
+            state_record['wins_count'],
+            state_record['losses_count'],
+            state_record['draws_count'])
     return None
 
-def update_state_record(state_hash, did_win):
+def update_state_record(state_hash, did_win, did_draw):
     # let's just not let one player ever learn
-    if state_hash[0] == PLAYER_MARKERS[0]:
+    if state_hash[0] == PLAYER_MARKERS[1]:
         return
 
     if state_hash in state_records:
         state_records[state_hash]['wins_count'] += 1 if did_win else 0
-        state_records[state_hash]['losses_count'] += 1 if not did_win else 0
+        state_records[state_hash]['losses_count'] += 1 if not did_win and not did_draw else 0
+        state_records[state_hash]['draws_count'] += 1 if did_draw else 0
     else:
         state_records[state_hash] = {
             'wins_count': 0,
-            'losses_count': 0
+            'losses_count': 0,
+            'draws_count': 0
         }
 
 def hash_state(player_number, state):
@@ -83,15 +88,12 @@ def find_available_states(player_number, current_state):
 def is_draw_state(player_number, current_state):
     available_states = find_available_states(player_number, current_state)
     is_draw_state = len(available_states) == 0
-    # if is_draw_state:
-        # print('Game ended in a draw. Final board: ' + str(current_state))
     return is_draw_state
 
 def is_win_state(player_number, current_state):
     player_marker = PLAYER_MARKERS[player_number]
     winning_player = checkWin(current_state)
     if winning_player == player_marker:
-        # print('Player ' + player_marker + ' won! Final board: ' + str(current_state))
         return True
 
 if __name__ == '__main__':
@@ -107,8 +109,8 @@ if __name__ == '__main__':
             update_state_record,
             hash_state,
             find_available_states,
-            record_weighting_functions.wins_minus_losses_floored,
-            visits_weighting_functions.noop,
+            record_weighting_functions.weighted_sum(10, -10, 5),
+            visits_weighting_functions.one,
             is_draw_state,
             is_win_state
         )

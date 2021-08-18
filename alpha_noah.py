@@ -9,9 +9,10 @@ import random
 
 STATE_RECORD_LOSSES_INDEX = 0
 STATE_RECORD_WINS_INDEX = 1
+STATE_RECORD_DRAWS_INDEX = 2
 
-def create_state_record(wins, losses):
-    return [losses, wins]
+def create_state_record(num_wins, num_losses, num_draws):
+    return [num_losses, num_wins, num_draws]
 
 def decide_next_state(
     current_player,
@@ -35,7 +36,8 @@ def decide_next_state(
 
             num_losses = available_state_record[STATE_RECORD_LOSSES_INDEX]
             num_wins = available_state_record[STATE_RECORD_WINS_INDEX]
-            num_visits = num_losses + num_wins
+            num_draws = available_state_record[STATE_RECORD_DRAWS_INDEX]
+            num_visits = num_losses + num_wins + num_draws
 
             min_available_visits = min(min_available_visits, num_visits)
             max_available_visits = max(max_available_visits, num_visits)
@@ -45,6 +47,7 @@ def decide_next_state(
     for i in range(len(available_states)):
         num_losses = 0
         num_wins = 0
+        num_draws = 0
         num_visits = 0
         
         available_state_hash = hash_state(current_player, available_state)
@@ -52,9 +55,10 @@ def decide_next_state(
             available_state_record = available_state_records_by_hash[available_state_hash]
             num_losses = available_state_record[STATE_RECORD_LOSSES_INDEX]
             num_wins = available_state_record[STATE_RECORD_WINS_INDEX]
-            num_visits = num_losses + num_wins
+            num_draws = available_state_record[STATE_RECORD_DRAWS_INDEX]
+            num_visits = num_losses + num_wins + num_draws
 
-        record_weight = weigh_record(num_wins, num_losses)
+        record_weight = weigh_record(num_wins, num_losses, num_draws)
         visits_weight = weigh_visits(num_visits, min_available_visits, max_available_visits)
         combined_weight = record_weight + visits_weight
         available_state_weights[i] = combined_weight
@@ -67,10 +71,11 @@ def update_state_records(
     state_paths_by_player,
     winning_player
 ):
+    did_draw = winning_player == -1
     for player_number in range(len(state_paths_by_player)):
         did_win = player_number == winning_player
         for state_hash in state_paths_by_player[player_number]:
-            update_state_record(state_hash, did_win)
+            update_state_record(state_hash, did_win, did_draw)
 
 def execute_standard_turn_based_game(
     initial_state,
