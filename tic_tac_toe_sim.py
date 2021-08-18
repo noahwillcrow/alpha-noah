@@ -34,6 +34,9 @@ import visits_weighting_functions
 
 PLAYER_MARKERS = ['x', 'o']
 PLAYER_MARKERS_SET = set(PLAYER_MARKERS)
+PLAYER_MARKERS_INDEX_LOOKUP = {}
+for i in range(len(PLAYER_MARKERS)):
+    PLAYER_MARKERS_INDEX_LOOKUP[PLAYER_MARKERS[i]] = i
 
 initial_state = [['a', 'b', 'c'], ['d', 'e', 'f'], ['g', 'h', 'i']]
 state_records = {}
@@ -49,8 +52,8 @@ def get_state_record(state_hash):
 
 def update_state_record(state_hash, did_win, did_draw):
     # let's just not let one player ever learn
-    if state_hash[0] == PLAYER_MARKERS[1]:
-        return
+    # if state_hash[0] == PLAYER_MARKERS[1]:
+    #     return
 
     if state_hash in state_records:
         state_records[state_hash]['wins_count'] += 1 if did_win else 0
@@ -63,7 +66,21 @@ def update_state_record(state_hash, did_win, did_draw):
             'draws_count': 0
         }
 
-def hash_state(player_number, state):
+def compact_hash_state(player_number, state):
+    state_raw_value = 0
+    ternary_digit_multiplier = 1 # think of this as 10^n where 10 is in base-3
+    for i in range(len(state)):
+        for j in range(len(state)):
+            location_value = 0
+            if state[i][j] in PLAYER_MARKERS_INDEX_LOOKUP:
+                location_value = PLAYER_MARKERS_INDEX_LOOKUP[state[i][j]] + 1
+            state_raw_value += location_value * ternary_digit_multiplier
+            ternary_digit_multiplier *= 3
+
+    state_hash = PLAYER_MARKERS[player_number] + '-' + hex(state_raw_value)[2:]
+    return state_hash
+
+def intelligibly_hash_state(player_number, state):
     state_hash = PLAYER_MARKERS[player_number] + '-'
     for i in range(len(state)):
         for j in range(len(state)):
@@ -97,7 +114,7 @@ def is_win_state(player_number, current_state):
         return True
 
 if __name__ == '__main__':
-    num_games = 100000
+    num_games = 10000
     print('running ' + str(num_games) + ' games of tic tac toe')
 
     win_counts_by_player_number = [0, 0]
@@ -107,7 +124,7 @@ if __name__ == '__main__':
             2, # num_players
             get_state_record,
             update_state_record,
-            hash_state,
+            compact_hash_state,
             find_available_states,
             record_weighting_functions.weighted_sum(10, -10, 5),
             visits_weighting_functions.one,
