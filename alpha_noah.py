@@ -45,6 +45,8 @@ def decide_next_state(
     available_state_weights = [0 for i in range(len(available_states))]
 
     for i in range(len(available_states)):
+        available_state = available_states[i]
+
         num_losses = 0
         num_wins = 0
         num_draws = 0
