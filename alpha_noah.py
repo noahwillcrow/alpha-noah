@@ -7,8 +7,11 @@ import random
 # - weighing function based on record (weigh_record(wins, losses))
 # - weighing function based on number of recorded appearances (weigh_visits(state_visits, min_available_visits, max_available_visits))
 
-STATE_RECORD_LOSSES_INDEX = 1
+STATE_RECORD_LOSSES_INDEX = 0
 STATE_RECORD_WINS_INDEX = 1
+
+def create_state_record(wins, losses):
+    return [losses, wins]
 
 def decide_next_state(
     current_player,
@@ -37,7 +40,7 @@ def decide_next_state(
             min_available_visits = min(min_available_visits, num_visits)
             max_available_visits = max(max_available_visits, num_visits)
 
-    available_state_weights = []
+    available_state_weights = [0 for i in range(len(available_states))]
 
     for i in range(len(available_states)):
         num_losses = 0
@@ -56,19 +59,17 @@ def decide_next_state(
         combined_weight = record_weight + visits_weight
         available_state_weights[i] = combined_weight
 
-    chosen_state = random.choices(available_states, available_state_weights)
+    chosen_state = random.choices(available_states, available_state_weights)[0]
     return chosen_state
 
 def update_state_records(
     update_state_record,
-    hash_state,
     state_paths_by_player,
     winning_player
 ):
     for player_number in range(len(state_paths_by_player)):
         did_win = player_number == winning_player
-        for state in state_paths_by_player:
-            state_hash = hash_state(player_number, state)
+        for state_hash in state_paths_by_player[player_number]:
             update_state_record(state_hash, did_win)
 
 def execute_standard_turn_based_game(
@@ -80,6 +81,7 @@ def execute_standard_turn_based_game(
     find_available_states,
     weigh_record,
     weigh_visits,
+    is_draw_state,
     is_win_state
 ):
     # assume valid input right now
@@ -90,7 +92,7 @@ def execute_standard_turn_based_game(
     current_player = 0
     current_state = initial_state
     while True:
-        available_states = find_available_states(current_state, current_player)
+        available_states = find_available_states(current_player, current_state)
         new_state = decide_next_state(
             current_player,
             get_state_record,
@@ -101,10 +103,15 @@ def execute_standard_turn_based_game(
         )
         state_paths_by_player[current_player].append(hash_state(current_player, new_state))
 
+        if is_draw_state(current_player, new_state):
+            # for now, count draws as losses - probably not a good idea though
+            update_state_records(update_state_record, state_paths_by_player, -1)
+            return -1
+
         for potential_winner in range(num_players):
-            if is_win_state(new_state, potential_winner):
-                update_state_records(update_state_record, hash_state, state_paths_by_player, potential_winner)
-                return
+            if is_win_state(potential_winner, new_state):
+                update_state_records(update_state_record, state_paths_by_player, potential_winner)
+                return potential_winner
 
         current_player = (current_player + 1) % num_players
         current_state = new_state
