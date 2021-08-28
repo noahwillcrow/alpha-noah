@@ -131,3 +131,7 @@ dmypy.json
 # Custom
 .vscode/
 simulated-data/
+
+# Added by cargo
+
+/target
