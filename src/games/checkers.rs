@@ -93,9 +93,6 @@ pub fn fill_vector_with_available_states(
     current_state: &CheckersState,
     available_states: &mut Vec<CheckersState>,
 ) {
-    let mut available_simple_move_states: Vec<CheckersState> = vec![];
-    let mut available_capture_move_states: Vec<CheckersState> = vec![];
-
     let move_search_params = get_player_specific_move_search_parameters(current_player_index);
     let mut owned_pieces_info: Vec<((usize, usize), &[(i8, i8)])> = vec![];
     fill_vector_with_current_player_owned_pieces_info_for_move_search(
@@ -104,19 +101,8 @@ pub fn fill_vector_with_available_states(
         &mut owned_pieces_info,
     );
 
+    // find any available capture moves
     for (current_coor, available_directions) in owned_pieces_info.iter() {
-        // find simple moves
-        fill_vector_with_available_simple_move_states_for_piece(
-            current_state,
-            current_coor,
-            available_directions,
-            move_search_params.single_piece_value,
-            move_search_params.double_piece_value,
-            move_search_params.double_row,
-            &mut available_simple_move_states,
-        );
-
-        // find capture moves
         fill_vector_with_available_capture_move_states_for_piece(
             current_player_index,
             current_state,
@@ -125,27 +111,90 @@ pub fn fill_vector_with_available_states(
             move_search_params.single_piece_value,
             move_search_params.double_piece_value,
             move_search_params.double_row,
-            &mut available_capture_move_states,
+            available_states,
+            10000,
         );
     }
 
-    if available_capture_move_states.is_empty() {
-        available_states.append(&mut available_simple_move_states);
-    } else {
-        available_states.append(&mut available_capture_move_states);
+    if !available_states.is_empty() {
+        // There are capture available, which means no simple moves are allowed
+        // Just return and don't waste time finding those moves
+        return;
+    }
+
+    // no capture moves are available
+    // so let's see what simple moves exist
+    for (current_coor, available_directions) in owned_pieces_info.iter() {
+        fill_vector_with_available_simple_move_states_for_piece(
+            current_state,
+            current_coor,
+            available_directions,
+            move_search_params.single_piece_value,
+            move_search_params.double_piece_value,
+            move_search_params.double_row,
+            available_states,
+            10000,
+        );
     }
 }
 
-pub fn get_terminal_state(current_player_index: i32, state: &CheckersState) -> Option<i32> {
-    let mut next_turn_available_states: Vec<CheckersState> = vec![];
+pub fn get_terminal_state(current_player_index: i32, current_state: &CheckersState) -> Option<i32> {
+    let move_search_params = get_player_specific_move_search_parameters(current_player_index);
+    let mut owned_pieces_info: Vec<((usize, usize), &[(i8, i8)])> = vec![];
+    fill_vector_with_current_player_owned_pieces_info_for_move_search(
+        current_state,
+        &move_search_params,
+        &mut owned_pieces_info,
+    );
 
-    fill_vector_with_available_states(current_player_index, state, &mut next_turn_available_states);
+    let mut available_move_states: Vec<CheckersState> = vec![];
 
-    if next_turn_available_states.is_empty() {
-        return Some(current_player_index);
+    // see if any simple moves exist for any pieces first since that's cheaper
+    for (current_coor, available_directions) in owned_pieces_info.iter() {
+        fill_vector_with_available_simple_move_states_for_piece(
+            current_state,
+            current_coor,
+            available_directions,
+            move_search_params.single_piece_value,
+            move_search_params.double_piece_value,
+            move_search_params.double_row,
+            &mut available_move_states,
+            1,
+        );
+
+        if !available_move_states.is_empty() {
+            // at least one move exists so this player hasn't lost yet
+            return None;
+        }
     }
 
-    return None;
+    // no simple moves were found so let's see if we have
+    // any capture moves (which are more expensive to find) are available
+    for (current_coor, available_directions) in owned_pieces_info.iter() {
+        fill_vector_with_available_capture_move_states_for_piece(
+            current_player_index,
+            current_state,
+            current_coor,
+            available_directions,
+            move_search_params.single_piece_value,
+            move_search_params.double_piece_value,
+            move_search_params.double_row,
+            &mut available_move_states,
+            1,
+        );
+
+        if !available_move_states.is_empty() {
+            // at least one move exists so this player hasn't lost yet
+            return None;
+        }
+    }
+
+    // no available moves have been found
+    // so the current player can't move for their coming turn
+    // which means they lost
+    // so let's return Some(other_player_index) to report that the game has ended and the other player has won
+    let other_player_index = (current_player_index + 1) % 2;
+    return Some(other_player_index);
 }
 
 pub fn hash_state(current_player_index: i32, current_state: &CheckersState) -> ByteString {
@@ -235,6 +284,7 @@ fn fill_vector_with_available_simple_move_states_for_piece(
     double_piece_value: u8,
     double_row: usize,
     available_simple_move_states: &mut Vec<CheckersState>,
+    max_number_of_moves_to_find: i32,
 ) {
     let current_state_space_value = current_state[current_coor.0][current_coor.1];
 
@@ -266,6 +316,11 @@ fn fill_vector_with_available_simple_move_states_for_piece(
             }
 
             available_simple_move_states.push(simple_move_state);
+
+            if available_simple_move_states.len() == max_number_of_moves_to_find as usize {
+                // we have found the max number of turns we want so let's just end here
+                return;
+            }
         }
     }
 }
@@ -279,6 +334,7 @@ fn fill_vector_with_available_capture_move_states_for_piece(
     double_piece_value: u8,
     double_row: usize,
     available_capture_move_states: &mut Vec<CheckersState>,
+    max_number_of_moves_to_find: i32,
 ) {
     let mut capture_possibilities_stack: Vec<(CheckersState, (usize, usize), (i8, i8))> = vec![];
     for direction in available_directions.iter() {
@@ -366,6 +422,11 @@ fn fill_vector_with_available_capture_move_states_for_piece(
                 }
 
                 available_capture_move_states.push(capture_move_state);
+
+                if available_capture_move_states.len() == max_number_of_moves_to_find as usize {
+                    // we have found the max number of turns we want so let's just end here
+                    return;
+                }
             }
             None => break 'inf_loop,
         }
