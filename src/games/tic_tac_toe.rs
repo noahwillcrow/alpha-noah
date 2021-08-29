@@ -33,9 +33,9 @@ impl StateRecordProvider<String> for TicTacToeStateRecordProvider {
 
     fn update_state_record(&mut self, state_hash: &String, did_win: bool, did_draw: bool) {
         // let's not let one player ever learn!
-        if state_hash[..1].eq("1") {
-            return;
-        }
+        // if state_hash[..1].eq("1") {
+        //     return;
+        // }
 
         // no players ever learn!
         // return;

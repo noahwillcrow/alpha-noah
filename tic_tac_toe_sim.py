@@ -1,11 +1,19 @@
 # this part was copied from https://stackoverflow.com/a/39923094
+from copy import deepcopy
+import visits_weighting_functions
+import record_weighting_functions
+import alpha_noah
+import csv
 import numpy as np
+from time import time
+
 
 def checkRows(board):
     for row in board:
         if len(set(row)) == 1:
             return row[0]
     return 0
+
 
 def checkDiagonals(board):
     if len(set([board[i][i] for i in range(len(board))])) == 1:
@@ -14,8 +22,9 @@ def checkDiagonals(board):
         return board[0][len(board)-1]
     return 0
 
+
 def checkWin(board):
-    #transposition to check rows, then columns
+    # transposition to check rows, then columns
     for newBoard in [board, np.transpose(board)]:
         result = checkRows(newBoard)
         if result:
@@ -24,15 +33,9 @@ def checkWin(board):
 
 # end stackoverflow thing
 
-from copy import deepcopy
-import csv
-import alpha_noah
-import record_weighting_functions
-import visits_weighting_functions
 
 # state format is a 2D array with 'x's and 'o's.
 # To satisfy the above win condition checker, empty values will be from [['a', 'b', 'c'], ['d', 'e', 'f'], ['g', 'h', 'i']]
-
 PLAYER_MARKERS = ['x', 'o']
 PLAYER_MARKERS_SET = set(PLAYER_MARKERS)
 PLAYER_MARKERS_INDEX_LOOKUP = {}
@@ -42,6 +45,7 @@ for i in range(len(PLAYER_MARKERS)):
 initial_state = [['a', 'b', 'c'], ['d', 'e', 'f'], ['g', 'h', 'i']]
 state_records = {}
 
+
 def get_state_record(state_hash):
     if state_hash in state_records:
         state_record = state_records[state_hash]
@@ -50,6 +54,7 @@ def get_state_record(state_hash):
             state_record['losses_count'],
             state_record['draws_count'])
     return None
+
 
 def update_state_record(state_hash, did_win, did_draw):
     # let's just not let one player ever learn
@@ -70,9 +75,10 @@ def update_state_record(state_hash, did_win, did_draw):
             'draws_count': 0
         }
 
+
 def compact_hash_state(player_number, state):
     state_raw_value = 0
-    ternary_digit_multiplier = 1 # think of this as 10^n where 10 is in base-3
+    ternary_digit_multiplier = 1  # think of this as 10^n where 10 is in base-3
     for i in range(len(state)):
         for j in range(len(state)):
             location_value = 0
@@ -84,6 +90,7 @@ def compact_hash_state(player_number, state):
     state_hash = PLAYER_MARKERS[player_number] + '-' + hex(state_raw_value)[2:]
     return state_hash
 
+
 def intelligibly_hash_state(player_number, state):
     state_hash = PLAYER_MARKERS[player_number] + '-'
     for i in range(len(state)):
@@ -91,6 +98,7 @@ def intelligibly_hash_state(player_number, state):
             state_hash += state[i][j]
 
     return state_hash
+
 
 def find_available_states(player_number, current_state):
     player_marker = PLAYER_MARKERS[player_number]
@@ -106,10 +114,12 @@ def find_available_states(player_number, current_state):
 
     return available_states
 
+
 def is_draw_state(player_number, current_state):
     available_states = find_available_states(player_number, current_state)
     is_draw_state = len(available_states) == 0
     return is_draw_state
+
 
 def is_win_state(player_number, current_state):
     player_marker = PLAYER_MARKERS[player_number]
@@ -117,13 +127,21 @@ def is_win_state(player_number, current_state):
     if winning_player == player_marker:
         return True
 
+
 if __name__ == '__main__':
     num_games = int(input('Enter number of games to simulate: '))
 
-    should_use_custom_weights = input('Do you want to specify the state evaluation weights? ').strip().lower()[:1] == 'y'
-    wins_weight = 10 if not should_use_custom_weights else int(input('Enter weight of wins for state evaluation: '))
-    losses_weight = -10 if not should_use_custom_weights else int(input('Enter weight of losses for state evaluation: '))
-    draws_weight = 5 if not should_use_custom_weights else int(input('Enter weight of draws for state evaluation: '))
+    should_report_simulation_duration = input(
+        'Do you want simulation duration reported? ').strip().lower()[:1] == 'y'
+
+    should_use_custom_weights = input(
+        'Do you want to specify the state evaluation weights? ').strip().lower()[:1] == 'y'
+    wins_weight = 10 if not should_use_custom_weights else int(
+        input('Enter weight of wins for state evaluation: '))
+    losses_weight = -10 if not should_use_custom_weights else int(
+        input('Enter weight of losses for state evaluation: '))
+    draws_weight = 5 if not should_use_custom_weights else int(
+        input('Enter weight of draws for state evaluation: '))
 
     if input('Should learning data be loaded from file? ').strip().lower()[:1] == 'y':
         saved_state_records_file_path = input('Path to learning data file: ')
@@ -139,23 +157,34 @@ if __name__ == '__main__':
     print('running ' + str(num_games) + ' games of tic tac toe')
 
     win_counts_by_player_number = [0, 0]
+
+    start_time = time()
+
     for _ in range(num_games):
         winning_player = alpha_noah.execute_standard_turn_based_game(
             initial_state,
-            2, # num_players
+            2,  # num_players
             get_state_record,
             update_state_record,
             compact_hash_state,
             find_available_states,
-            record_weighting_functions.weighted_sum(wins_weight, losses_weight, draws_weight),
+            record_weighting_functions.weighted_sum(
+                wins_weight, losses_weight, draws_weight),
             visits_weighting_functions.one,
             is_draw_state,
             is_win_state
         )
         if winning_player >= 0:
             win_counts_by_player_number[winning_player] += 1
-        
-    print('Final results! The x player won ' + str(win_counts_by_player_number[0]) + ' games and the o player won ' + str(win_counts_by_player_number[1]) + ' games')
+
+    end_time = time()
+
+    print('Final results! The x player won ' +
+          str(win_counts_by_player_number[0]) + ' games and the o player won ' + str(win_counts_by_player_number[1]) + ' games')
+
+    if should_report_simulation_duration:
+        print("Simulation of " + str(num_games) +
+              " games took " + str(end_time - start_time) + "s.")
 
     if input('Should learning data be saved to a file? ').strip().lower()[:1] == 'y':
         dest_state_records_file_path = input('Path to save learning data to: ')
