@@ -5,12 +5,11 @@ use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 use std::cmp;
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::hash::Hash;
 
 pub fn execute_standard_turn_based_game<
     State: Clone,
-    HashedState: Eq + Hash + Clone + Display,
+    HashedState: Eq + Hash + Clone,
     WeighRecordFn: Fn(&StateRecord) -> f32,
     WeighVisitsFn: Fn(i32, i32, i32) -> f32,
 >(
@@ -25,7 +24,9 @@ pub fn execute_standard_turn_based_game<
     ),
     weigh_record: &WeighRecordFn,
     weight_visits: &WeighVisitsFn,
-    get_terminal_state: fn(state: &State) -> Option<i32>,
+    get_terminal_state: fn(current_player_index: i32, state: &State) -> Option<i32>,
+    max_number_of_turns: i32,
+    is_reaching_max_number_of_turns_a_draw: bool,
 ) -> i32 {
     let mut states_paths_by_player: Vec<Vec<HashedState>> = vec![];
     for _ in 0..players_count {
@@ -35,8 +36,11 @@ pub fn execute_standard_turn_based_game<
     let mut current_player_index = 0;
     let mut current_state = initial_state;
     let mut winning_player_index = -2; // -1 represents a draw, -2 represents undetermined
+    let mut turns_counter = 0;
 
-    while winning_player_index == -2 {
+    while winning_player_index == -2 && turns_counter < max_number_of_turns {
+        turns_counter += 1;
+
         let mut available_states: Vec<State> = vec![];
         fill_vector_with_available_states(
             current_player_index,
@@ -60,7 +64,7 @@ pub fn execute_standard_turn_based_game<
                 states_paths_by_player[current_player_index as usize].push(next_state_hash);
                 current_player_index = (current_player_index + 1) % players_count;
                 current_state = next_state;
-                match get_terminal_state(&current_state) {
+                match get_terminal_state(current_player_index, &current_state) {
                     None => (),
                     Some(result_index) => {
                         winning_player_index = result_index;
@@ -68,18 +72,25 @@ pub fn execute_standard_turn_based_game<
                 }
             }
             _ => {
-                let current_state_hash = hash_state(current_player_index, &current_state);
-                println!("boutta crash; current state hash: {}", current_state_hash);
                 panic!("How did we end up with no available states but not a terminal condition!?")
             }
         }
     }
 
-    update_state_records(
-        state_record_provider,
-        &states_paths_by_player,
-        winning_player_index,
-    );
+    if winning_player_index == -2
+        && is_reaching_max_number_of_turns_a_draw
+        && turns_counter == max_number_of_turns
+    {
+        winning_player_index = -1;
+    }
+
+    if winning_player_index > -2 {
+        update_state_records(
+            state_record_provider,
+            &states_paths_by_player,
+            winning_player_index,
+        );
+    }
 
     return winning_player_index;
 }

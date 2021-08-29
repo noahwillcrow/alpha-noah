@@ -88,7 +88,7 @@ pub fn fill_vector_with_available_states(
     }
 }
 
-pub fn get_terminal_state(state: &TicTacToeState) -> Option<i32> {
+pub fn get_terminal_state(_: i32, state: &TicTacToeState) -> Option<i32> {
     for winning_position_set in WINNING_POSITION_SETS.iter() {
         let position_values = (
             state[winning_position_set.0 .0][winning_position_set.0 .1],
