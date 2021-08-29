@@ -1,3 +1,4 @@
+#[derive(Copy, Clone)]
 pub struct StateRecord {
     pub draws_count: i32,
     pub losses_count: i32,

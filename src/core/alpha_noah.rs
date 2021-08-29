@@ -1,86 +1,106 @@
-use super::state_record::StateRecord;
-use rand;
+use crate::core::state_record::StateRecord;
+use crate::core::state_record_provider::StateRecordProvider;
+use crate::core::utilities;
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 use std::cmp;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::hash::Hash;
 
-pub fn execute_standard_turn_based_game<State, HashedState: Eq + Hash>(
+pub fn execute_standard_turn_based_game<
+    State: Clone,
+    HashedState: Eq + Hash + Clone + Display,
+    WeighRecordFn: Fn(&StateRecord) -> f32,
+    WeighVisitsFn: Fn(i32, i32, i32) -> f32,
+>(
     initial_state: State,
     players_count: i32,
-    get_state_record: fn(state: &HashedState) -> Option<StateRecord>,
+    state_record_provider: &mut dyn StateRecordProvider<HashedState>,
     hash_state: fn(current_player_index: i32, state: &State) -> HashedState,
-    update_state_record: fn(state_hash: &HashedState, did_draw: bool, did_win: bool),
-    find_available_states: fn(current_player_index: i32, state: &State) -> &[State],
-    weigh_record: fn(state_record: &StateRecord) -> f32,
-    weight_visits: fn(
-        visits_for_state: i32,
-        min_available_visits: i32,
-        max_available_visits: i32,
-    ) -> f32,
-    get_winning_player_index_for_state: fn(state: &State) -> Option<i32>,
-) {
+    fill_vector_with_available_states: fn(
+        current_player_index: i32,
+        current_state: &State,
+        available_states: &mut Vec<State>,
+    ),
+    weigh_record: &WeighRecordFn,
+    weight_visits: &WeighVisitsFn,
+    get_terminal_state: fn(state: &State) -> Option<i32>,
+) -> i32 {
     let mut states_paths_by_player: Vec<Vec<HashedState>> = vec![];
     for _ in 0..players_count {
         states_paths_by_player.push(vec![]);
     }
 
     let mut current_player_index = 0;
-    let mut current_state = &initial_state;
-    let mut winning_player_index = -1;
+    let mut current_state = initial_state;
+    let mut winning_player_index = -2; // -1 represents a draw, -2 represents undetermined
 
-    while winning_player_index == -1 {
-        let available_states = &find_available_states(current_player_index, &current_state);
-        let decide_next_state_result = decide_next_state(
+    while winning_player_index == -2 {
+        let mut available_states: Vec<State> = vec![];
+        fill_vector_with_available_states(
             current_player_index,
-            get_state_record,
+            &current_state,
+            &mut available_states,
+        );
+
+        let decide_next_state_index_result = decide_next_state_index(
+            current_player_index,
+            state_record_provider,
             hash_state,
-            available_states,
+            &available_states,
             weigh_record,
             weight_visits,
         );
 
-        match decide_next_state_result {
-            Ok(next_state) => {
+        match decide_next_state_index_result {
+            Ok(next_state_index) => {
+                let next_state = available_states[next_state_index].clone();
                 let next_state_hash = hash_state(current_player_index, &next_state);
                 states_paths_by_player[current_player_index as usize].push(next_state_hash);
                 current_player_index = (current_player_index + 1) % players_count;
                 current_state = next_state;
-                match get_winning_player_index_for_state(&next_state) {
+                match get_terminal_state(&current_state) {
                     None => (),
-                    Some(result_index) => (winning_player_index = result_index),
+                    Some(result_index) => {
+                        winning_player_index = result_index;
+                    }
                 }
             }
             _ => {
+                let current_state_hash = hash_state(current_player_index, &current_state);
+                println!("boutta crash; current state hash: {}", current_state_hash);
                 panic!("How did we end up with no available states but not a terminal condition!?")
             }
         }
     }
 
     update_state_records(
-        update_state_record,
+        state_record_provider,
         &states_paths_by_player,
         winning_player_index,
     );
+
+    return winning_player_index;
 }
 
 enum DecideNextStateError {
     NoAvailableStatesError,
 }
 
-fn decide_next_state<State, HashedState: Eq + Hash>(
+fn decide_next_state_index<
+    State,
+    HashedState: Eq + Hash + Clone,
+    WeighRecordFn: Fn(&StateRecord) -> f32,
+    WeighVisitsFn: Fn(i32, i32, i32) -> f32,
+>(
     current_player_index: i32,
-    get_state_record: fn(state: &HashedState) -> Option<StateRecord>,
+    state_record_provider: &dyn StateRecordProvider<HashedState>,
     hash_state: fn(current_player_index: i32, state: &State) -> HashedState,
     available_states: &[State],
-    weigh_record: fn(state_record: &StateRecord) -> f32,
-    weight_visits: fn(
-        visits_for_state: i32,
-        min_available_visits: i32,
-        max_available_visits: i32,
-    ) -> f32,
-) -> Result<&State, DecideNextStateError> {
+    weigh_record: &WeighRecordFn,
+    weight_visits: &WeighVisitsFn,
+) -> Result<usize, DecideNextStateError> {
     let available_states_count = available_states.len();
     if available_states_count == 0 {
         return Err(DecideNextStateError::NoAvailableStatesError);
@@ -94,12 +114,10 @@ fn decide_next_state<State, HashedState: Eq + Hash>(
     for available_state in available_states.iter() {
         let available_state_hash = hash_state(current_player_index, &available_state);
 
-        match get_state_record(&available_state_hash) {
+        match state_record_provider.get_state_record(available_state_hash.clone()) {
             None => (),
             Some(available_state_record) => {
-                let visits_count = available_state_record.draws_count
-                    + available_state_record.losses_count
-                    + available_state_record.wins_count;
+                let visits_count = utilities::count_visits(&available_state_record);
                 max_available_visits = cmp::max(max_available_visits, visits_count);
                 min_available_visits = cmp::min(min_available_visits, visits_count);
 
@@ -121,9 +139,7 @@ fn decide_next_state<State, HashedState: Eq + Hash>(
             }
         }
 
-        let visits_count = available_state_record.draws_count
-            + available_state_record.losses_count
-            + available_state_record.wins_count;
+        let visits_count = utilities::count_visits(&available_state_record);
 
         let available_state_record_weight = weigh_record(available_state_record);
         let available_state_visits_weight =
@@ -135,12 +151,11 @@ fn decide_next_state<State, HashedState: Eq + Hash>(
 
     let dist = WeightedIndex::new(&available_state_weights).unwrap();
     let mut rng = thread_rng();
-    let chosen_state = &available_states[dist.sample(&mut rng)];
-    return Ok(chosen_state);
+    return Ok(dist.sample(&mut rng));
 }
 
-fn update_state_records<HashedState: Eq + Hash>(
-    update_state_record: fn(state_hash: &HashedState, did_draw: bool, did_win: bool),
+fn update_state_records<HashedState: Eq + Hash + Clone>(
+    state_record_provider: &mut dyn StateRecordProvider<HashedState>,
     states_paths_by_player: &[Vec<HashedState>],
     winning_player_index: i32,
 ) {
@@ -148,7 +163,7 @@ fn update_state_records<HashedState: Eq + Hash>(
     for (player_index, states_path_for_player) in states_paths_by_player.iter().enumerate() {
         let did_win = winning_player_index == player_index as i32;
         for state_hash in states_path_for_player.iter() {
-            update_state_record(&state_hash, did_draw, did_win)
+            state_record_provider.update_state_record(&state_hash, did_draw, did_win)
         }
     }
 }
