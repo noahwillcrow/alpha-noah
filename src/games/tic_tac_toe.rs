@@ -88,3 +88,56 @@ pub fn hash_state(_: i32, current_state: &TicTacToeState) -> Vec<u8> {
 
     return state_raw_value.to_be_bytes().to_vec();
 }
+
+pub fn create_new_state_from_user_input(
+    current_player_index: i32,
+    current_state: &TicTacToeState,
+    user_input_str: &str,
+) -> Result<TicTacToeState, i32> {
+    let input_coor: (usize, usize);
+
+    match &user_input_str[..3] {
+        "0,0" => input_coor = (0, 0),
+        "0,1" => input_coor = (0, 1),
+        "0,2" => input_coor = (0, 2),
+        "1,0" => input_coor = (1, 0),
+        "1,1" => input_coor = (1, 1),
+        "1,2" => input_coor = (1, 2),
+        "2,0" => input_coor = (2, 0),
+        "2,1" => input_coor = (2, 1),
+        "2,2" => input_coor = (2, 2),
+        _ => return Err(1),
+    }
+
+    let mut new_state = current_state.clone();
+    new_state[input_coor.0][input_coor.1] = current_player_index as u8 + 1;
+
+    return Ok(new_state);
+}
+
+pub fn convert_state_to_cli_string(current_state: &TicTacToeState) -> String {
+    return format!(
+        "\
+        {}|{}|{}\n\
+        {}|{}|{}\n\
+        {}|{}|{}\n\
+    ",
+        convert_space_value_to_cli_string(current_state[0][0]),
+        convert_space_value_to_cli_string(current_state[0][1]),
+        convert_space_value_to_cli_string(current_state[0][2]),
+        convert_space_value_to_cli_string(current_state[1][0]),
+        convert_space_value_to_cli_string(current_state[1][1]),
+        convert_space_value_to_cli_string(current_state[1][2]),
+        convert_space_value_to_cli_string(current_state[2][0]),
+        convert_space_value_to_cli_string(current_state[2][1]),
+        convert_space_value_to_cli_string(current_state[2][2])
+    );
+}
+
+fn convert_space_value_to_cli_string(space_value: u8) -> String {
+    return String::from(match space_value {
+        1 => "x",
+        2 => "o",
+        _ => " ",
+    });
+}

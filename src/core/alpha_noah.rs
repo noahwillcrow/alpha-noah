@@ -41,25 +41,16 @@ pub fn execute_standard_turn_based_game<
     while winning_player_index == -2 && turns_counter < max_number_of_turns {
         turns_counter += 1;
 
-        let mut available_states: Vec<State> = vec![];
-        fill_vector_with_available_states(
+        match decide_next_state(
             current_player_index,
-            &current_state,
-            &mut available_states,
-        );
-
-        let decide_next_state_index_result = decide_next_state_index(
-            current_player_index,
+            current_state,
             state_record_provider,
             hash_state,
-            &available_states,
+            fill_vector_with_available_states,
             weigh_record,
             weight_visits,
-        );
-
-        match decide_next_state_index_result {
-            Ok(next_state_index) => {
-                let next_state = available_states[next_state_index].clone();
+        ) {
+            Ok(next_state) => {
                 let next_state_hash = hash_state(current_player_index, &next_state);
                 states_paths_by_player[current_player_index as usize].push(next_state_hash);
                 current_player_index = (current_player_index + 1) % number_of_players;
@@ -71,7 +62,7 @@ pub fn execute_standard_turn_based_game<
                     }
                 }
             }
-            _ => {
+            Err(DecideNextStateError::NoAvailableStatesError) => {
                 panic!("How did we end up with no available states but not a terminal condition!?")
             }
         }
@@ -95,8 +86,48 @@ pub fn execute_standard_turn_based_game<
     return (winning_player_index, states_paths_by_player);
 }
 
-enum DecideNextStateError {
+pub enum DecideNextStateError {
     NoAvailableStatesError,
+}
+
+pub fn decide_next_state<
+    State: Clone,
+    HashedState: Eq + Hash + Clone,
+    WeighRecordFn: Fn(&StateRecord) -> f32,
+    WeighVisitsFn: Fn(i32, i32, i32) -> f32,
+>(
+    current_player_index: i32,
+    current_state: State,
+    state_record_provider: &mut dyn StateRecordProvider<HashedState>,
+    hash_state: fn(responsible_player_index: i32, state: &State) -> HashedState,
+    fill_vector_with_available_states: fn(
+        current_player_index: i32,
+        current_state: &State,
+        available_states: &mut Vec<State>,
+    ),
+    weigh_record: &WeighRecordFn,
+    weight_visits: &WeighVisitsFn,
+) -> Result<State, DecideNextStateError> {
+    let mut available_states: Vec<State> = vec![];
+    fill_vector_with_available_states(current_player_index, &current_state, &mut available_states);
+
+    let decide_next_state_index_result = decide_next_state_index(
+        current_player_index,
+        state_record_provider,
+        hash_state,
+        &available_states,
+        weigh_record,
+        weight_visits,
+    );
+
+    match decide_next_state_index_result {
+        Ok(next_state_index) => {
+            return Ok(available_states[next_state_index].clone());
+        }
+        Err(err) => {
+            return Err(err);
+        }
+    }
 }
 
 fn decide_next_state_index<
