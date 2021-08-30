@@ -10,7 +10,8 @@ CREATE TABLE GameStateRecords (
 CREATE TABLE GameLogs (
     ID INTEGER NOT NULL PRIMARY KEY,
     GameName TEXT NOT NULL,
-    Log BLOB NOT NULL
+    Log BLOB NOT NULL,
+    WinningPlayerIndex INTEGER NOT NULL
 );
 
 CREATE INDEX IDX_GameLogs_GameName ON GameLogs(GameName);

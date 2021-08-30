@@ -27,7 +27,7 @@ pub fn execute_standard_turn_based_game<
     get_terminal_state: fn(current_player_index: i32, state: &State) -> Option<i32>,
     max_number_of_turns: i32,
     is_reaching_max_number_of_turns_a_draw: bool,
-) -> i32 {
+) -> (i32, Vec<Vec<HashedState>>) {
     let mut states_paths_by_player: Vec<Vec<HashedState>> = vec![];
     for _ in 0..number_of_players {
         states_paths_by_player.push(vec![]);
@@ -92,7 +92,7 @@ pub fn execute_standard_turn_based_game<
         );
     }
 
-    return winning_player_index;
+    return (winning_player_index, states_paths_by_player);
 }
 
 enum DecideNextStateError {

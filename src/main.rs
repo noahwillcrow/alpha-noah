@@ -130,18 +130,20 @@ fn main() -> Result<(), rusqlite::Error> {
                 );
 
             for _ in 0..number_of_games {
-                update_win_counts(core::alpha_noah::execute_standard_turn_based_game(
-                    games::checkers::create_initial_state(),
-                    2,
-                    &mut cal_state_record_provider,
-                    games::checkers::hash_state,
-                    games::checkers::fill_vector_with_available_states,
-                    &record_weighting_function,
-                    &weight_calculators::visits_weighting_functions::difference_from_max,
-                    games::checkers::get_terminal_state,
-                    max_number_of_turns,
-                    is_reaching_max_number_of_turns_a_draw,
-                ));
+                let (winning_player_index, _state_paths_by_player) =
+                    core::alpha_noah::execute_standard_turn_based_game(
+                        games::checkers::create_initial_state(),
+                        2,
+                        &mut cal_state_record_provider,
+                        games::checkers::hash_state,
+                        games::checkers::fill_vector_with_available_states,
+                        &record_weighting_function,
+                        &weight_calculators::visits_weighting_functions::difference_from_max,
+                        games::checkers::get_terminal_state,
+                        max_number_of_turns,
+                        is_reaching_max_number_of_turns_a_draw,
+                    );
+                update_win_counts(winning_player_index);
             }
 
             persisting_results_thread_handler = cal_state_record_provider
@@ -161,18 +163,20 @@ fn main() -> Result<(), rusqlite::Error> {
                 );
 
             for _ in 0..number_of_games {
-                update_win_counts(core::alpha_noah::execute_standard_turn_based_game(
-                    games::tic_tac_toe::create_initial_state(),
-                    2,
-                    &mut cal_state_record_provider,
-                    games::tic_tac_toe::hash_state,
-                    games::tic_tac_toe::fill_vector_with_available_states,
-                    &record_weighting_function,
-                    &weight_calculators::visits_weighting_functions::difference_from_max,
-                    games::tic_tac_toe::get_terminal_state,
-                    max_number_of_turns,
-                    is_reaching_max_number_of_turns_a_draw,
-                ));
+                let (winning_player_index, _state_paths_by_player) =
+                    core::alpha_noah::execute_standard_turn_based_game(
+                        games::tic_tac_toe::create_initial_state(),
+                        2,
+                        &mut cal_state_record_provider,
+                        games::tic_tac_toe::hash_state,
+                        games::tic_tac_toe::fill_vector_with_available_states,
+                        &record_weighting_function,
+                        &weight_calculators::visits_weighting_functions::difference_from_max,
+                        games::tic_tac_toe::get_terminal_state,
+                        max_number_of_turns,
+                        is_reaching_max_number_of_turns_a_draw,
+                    );
+                update_win_counts(winning_player_index);
             }
 
             persisting_results_thread_handler = cal_state_record_provider
