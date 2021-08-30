@@ -134,4 +134,4 @@ dmypy.json
 # Custom
 .vscode/
 simulated-data/
-*.db
+*.db*
