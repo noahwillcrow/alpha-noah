@@ -113,26 +113,25 @@ fn main() -> Result<(), rusqlite::Error> {
 
     let start_instant = Instant::now();
 
-    let sqlite_connection = rusqlite::Connection::open("./GamesHistory.db")?;
-
     match game {
         Game::Checkers => {
-            let mut sqlite_state_record_provider =
-                persistence::sqlite_state_record_provider::SqliteStateRecordProvider::new(
-                    &sqlite_connection,
-                    "checkers",
-                );
-            let mut lru_cache_state_record_provider =
-                persistence::lru_cache_state_record_provider::LruCacheStateRecordProvider::new(
-                    &mut sqlite_state_record_provider,
-                    10_000_000,
+            let cal_max_capacity: usize = 10_000_000;
+            let mut sqlite_state_record_dal =
+                persistence::sqlite_state_record_dal::SqliteStateRecordDAL::new(
+                    String::from("checkers"),
+                    String::from("./GamesHistory.db"),
+                )?;
+            let mut cal_state_record_provider =
+                persistence::cal_state_record_provider::CALStateRecordProvider::new(
+                    cal_max_capacity,
+                    &mut sqlite_state_record_dal,
                 );
 
             for _ in 0..number_of_games {
                 update_win_counts(core::alpha_noah::execute_standard_turn_based_game(
                     games::checkers::create_initial_state(),
                     2,
-                    &mut lru_cache_state_record_provider,
+                    &mut cal_state_record_provider,
                     games::checkers::hash_state,
                     games::checkers::fill_vector_with_available_states,
                     &record_weighting_function,
@@ -142,24 +141,30 @@ fn main() -> Result<(), rusqlite::Error> {
                     is_reaching_max_number_of_turns_a_draw,
                 ));
             }
+
+            cal_state_record_provider
+                .try_commit_lru_updates_to_dal_in_background(cal_max_capacity)
+                .join()
+                .expect("Failed to write back updates to DAL");
         }
         Game::TicTacToe => {
-            let mut sqlite_state_record_provider =
-                persistence::sqlite_state_record_provider::SqliteStateRecordProvider::new(
-                    &sqlite_connection,
-                    "tic-tac-toe",
-                );
-            let mut lru_cache_state_record_provider =
-                persistence::lru_cache_state_record_provider::LruCacheStateRecordProvider::new(
-                    &mut sqlite_state_record_provider,
-                    10_000_000,
+            let cal_max_capacity: usize = 10_000_000;
+            let mut sqlite_state_record_dal =
+                persistence::sqlite_state_record_dal::SqliteStateRecordDAL::new(
+                    String::from("tic-tac-toe"),
+                    String::from("./GamesHistory.db"),
+                )?;
+            let mut cal_state_record_provider =
+                persistence::cal_state_record_provider::CALStateRecordProvider::new(
+                    cal_max_capacity,
+                    &mut sqlite_state_record_dal,
                 );
 
             for _ in 0..number_of_games {
                 update_win_counts(core::alpha_noah::execute_standard_turn_based_game(
                     games::tic_tac_toe::create_initial_state(),
                     2,
-                    &mut lru_cache_state_record_provider,
+                    &mut cal_state_record_provider,
                     games::tic_tac_toe::hash_state,
                     games::tic_tac_toe::fill_vector_with_available_states,
                     &record_weighting_function,
@@ -169,13 +174,18 @@ fn main() -> Result<(), rusqlite::Error> {
                     is_reaching_max_number_of_turns_a_draw,
                 ));
             }
+
+            cal_state_record_provider
+                .try_commit_lru_updates_to_dal_in_background(cal_max_capacity)
+                .join()
+                .expect("Failed to write back updates to DAL");
         }
     }
 
     let simulation_duration = start_instant.elapsed();
 
     println!(
-        "Final results are in! The x player won {} games and the o player won {} games.",
+        "Final results are in! The first player won {} games and the second player won {} games.",
         win_counts_by_player_index[0], win_counts_by_player_index[1]
     );
 
