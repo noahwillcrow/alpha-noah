@@ -113,7 +113,7 @@ fn main() -> Result<(), rusqlite::Error> {
 
     let persisting_results_thread_handler: std::thread::JoinHandle<()>;
 
-    let start_instant = Instant::now();
+    let simulations_start_instant = Instant::now();
 
     match game {
         Game::Checkers => {
@@ -180,7 +180,7 @@ fn main() -> Result<(), rusqlite::Error> {
         }
     }
 
-    let simulation_duration = start_instant.elapsed();
+    let simulations_duration = simulations_start_instant.elapsed();
 
     println!(
         "Final results are in! The first player won {} games and the second player won {} games.",
@@ -190,15 +190,22 @@ fn main() -> Result<(), rusqlite::Error> {
     if should_report_simulation_duration {
         println!(
             "Simulation of {} games took {:?}.",
-            number_of_games, simulation_duration
+            number_of_games, simulations_duration
         );
     }
 
     println!("Waiting to complete writing back updates to DAL.");
 
+    let dal_updates_start_instant = Instant::now();
+
     persisting_results_thread_handler
         .join()
         .expect("Failed to write back updates to DAL");
+
+    println!(
+        "DAL updates took {:?} to complete.",
+        dal_updates_start_instant.elapsed()
+    );
 
     println!("Done.");
 
