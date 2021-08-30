@@ -104,15 +104,21 @@ fn main() {
         );
 
     let mut win_counts_by_player_index = vec![0; 2];
+    let mut update_win_counts = |winning_player_index: i32| {
+        if winning_player_index >= 0 {
+            win_counts_by_player_index[winning_player_index as usize] += 1;
+        }
+    };
 
     let start_instant = Instant::now();
-    for _ in 1..number_of_games {
-        let winning_player_index: i32;
 
-        match game {
-            Game::Checkers => {
-                let mut state_record_provider = games::checkers::create_state_record_provider();
-                winning_player_index = core::alpha_noah::execute_standard_turn_based_game(
+    match game {
+        Game::Checkers => {
+            let mut state_record_provider =
+                core::state_record_provider::InMemoryStateRecordProvider::new();
+
+            for _ in 0..number_of_games {
+                update_win_counts(core::alpha_noah::execute_standard_turn_based_game(
                     games::checkers::create_initial_state(),
                     2,
                     &mut state_record_provider,
@@ -123,11 +129,15 @@ fn main() {
                     games::checkers::get_terminal_state,
                     max_number_of_turns,
                     is_reaching_max_number_of_turns_a_draw,
-                )
+                ));
             }
-            Game::TicTacToe => {
-                let mut state_record_provider = games::tic_tac_toe::create_state_record_provider();
-                winning_player_index = core::alpha_noah::execute_standard_turn_based_game(
+        }
+        Game::TicTacToe => {
+            let mut state_record_provider =
+                core::state_record_provider::InMemoryStateRecordProvider::new();
+
+            for _ in 0..number_of_games {
+                update_win_counts(core::alpha_noah::execute_standard_turn_based_game(
                     games::tic_tac_toe::create_initial_state(),
                     2,
                     &mut state_record_provider,
@@ -138,14 +148,11 @@ fn main() {
                     games::tic_tac_toe::get_terminal_state,
                     max_number_of_turns,
                     is_reaching_max_number_of_turns_a_draw,
-                )
+                ));
             }
         }
-
-        if winning_player_index >= 0 {
-            win_counts_by_player_index[winning_player_index as usize] += 1;
-        }
     }
+
     let simulation_duration = start_instant.elapsed();
 
     println!(

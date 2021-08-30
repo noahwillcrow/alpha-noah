@@ -1,7 +1,5 @@
-use crate::core::state_record::StateRecord;
-use crate::core::state_record_provider::StateRecordProvider;
 use byte_string::ByteString;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 // Working state format is a 2D array of bytes with 0 for unoccupied, 1 for first player's standard piece, 11 for first player's double piece,
 // 2 for the second player's piece, and 2 for the second player's double piece
@@ -27,48 +25,6 @@ struct MoveSearchParameters {
 
 pub type CheckersState = Vec<Vec<u8>>;
 
-pub struct CheckersStateRecordProvider {
-    state_records: HashMap<ByteString, StateRecord>,
-}
-
-impl StateRecordProvider<ByteString> for CheckersStateRecordProvider {
-    fn get_state_record(&self, state_hash: ByteString) -> Option<StateRecord> {
-        match self.state_records.get(&state_hash[..]) {
-            Some(&state_record) => Some(state_record.clone()),
-            None => None,
-        }
-    }
-
-    fn update_state_record(&mut self, state_hash: &ByteString, did_win: bool, did_draw: bool) {
-        // let's not let one player ever learn!
-        // if state_hash[0] == 1 {
-        //     return;
-        // }
-
-        // no players ever learn!
-        // return;
-
-        let new_state_record: StateRecord;
-
-        match self.state_records.get(&state_hash[..]) {
-            Some(&state_record) => {
-                new_state_record = StateRecord::new(
-                    state_record.draws_count + (if did_draw { 1 } else { 0 }),
-                    state_record.losses_count,
-                    state_record.wins_count + (if did_win { 1 } else { 0 }),
-                )
-            }
-            None => {
-                new_state_record =
-                    StateRecord::new(if did_draw { 1 } else { 0 }, 0, if did_win { 1 } else { 0 })
-            }
-        }
-
-        self.state_records
-            .insert(state_hash.clone(), new_state_record);
-    }
-}
-
 pub fn create_initial_state() -> CheckersState {
     return vec![
         vec![0, 1, 0, 1, 0, 1, 0, 1],
@@ -80,12 +36,6 @@ pub fn create_initial_state() -> CheckersState {
         vec![0, 2, 0, 2, 0, 2, 0, 2],
         vec![2, 0, 2, 0, 2, 0, 2, 0],
     ];
-}
-
-pub fn create_state_record_provider() -> impl StateRecordProvider<ByteString> {
-    return CheckersStateRecordProvider {
-        state_records: HashMap::new(),
-    };
 }
 
 pub fn fill_vector_with_available_states(

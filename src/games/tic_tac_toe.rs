@@ -1,7 +1,3 @@
-use crate::core::state_record::StateRecord;
-use crate::core::state_record_provider::StateRecordProvider;
-use std::collections::HashMap;
-
 type Position = (usize, usize);
 static WINNING_POSITION_SETS: &'static [(Position, Position, Position)] = &[
     // rows
@@ -19,56 +15,8 @@ static WINNING_POSITION_SETS: &'static [(Position, Position, Position)] = &[
 
 pub type TicTacToeState = Vec<Vec<i32>>;
 
-pub struct TicTacToeStateRecordProvider {
-    state_records: HashMap<String, StateRecord>,
-}
-
-impl StateRecordProvider<String> for TicTacToeStateRecordProvider {
-    fn get_state_record(&self, state_hash: String) -> Option<StateRecord> {
-        match self.state_records.get(&state_hash[..]) {
-            Some(&state_record) => Some(state_record.clone()),
-            None => None,
-        }
-    }
-
-    fn update_state_record(&mut self, state_hash: &String, did_win: bool, did_draw: bool) {
-        // let's not let one player ever learn!
-        // if state_hash[..1].eq("1") {
-        //     return;
-        // }
-
-        // no players ever learn!
-        // return;
-
-        let new_state_record: StateRecord;
-
-        match self.state_records.get(&state_hash[..]) {
-            Some(&state_record) => {
-                new_state_record = StateRecord::new(
-                    state_record.draws_count + (if did_draw { 1 } else { 0 }),
-                    state_record.losses_count,
-                    state_record.wins_count + (if did_win { 1 } else { 0 }),
-                )
-            }
-            None => {
-                new_state_record =
-                    StateRecord::new(if did_draw { 1 } else { 0 }, 0, if did_win { 1 } else { 0 })
-            }
-        }
-
-        self.state_records
-            .insert(state_hash.clone(), new_state_record);
-    }
-}
-
 pub fn create_initial_state() -> TicTacToeState {
     return vec![vec![-1, -1, -1], vec![-1, -1, -1], vec![-1, -1, -1]];
-}
-
-pub fn create_state_record_provider() -> impl StateRecordProvider<String> {
-    return TicTacToeStateRecordProvider {
-        state_records: HashMap::new(),
-    };
 }
 
 pub fn fill_vector_with_available_states(
