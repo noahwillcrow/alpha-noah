@@ -111,6 +111,8 @@ fn main() -> Result<(), rusqlite::Error> {
         }
     };
 
+    let persisting_results_thread_handler: std::thread::JoinHandle<()>;
+
     let start_instant = Instant::now();
 
     match game {
@@ -142,10 +144,8 @@ fn main() -> Result<(), rusqlite::Error> {
                 ));
             }
 
-            cal_state_record_provider
-                .try_commit_lru_updates_to_dal_in_background(cal_max_capacity)
-                .join()
-                .expect("Failed to write back updates to DAL");
+            persisting_results_thread_handler = cal_state_record_provider
+                .try_commit_lru_updates_to_dal_in_background(cal_max_capacity);
         }
         Game::TicTacToe => {
             let cal_max_capacity: usize = 10_000_000;
@@ -175,10 +175,8 @@ fn main() -> Result<(), rusqlite::Error> {
                 ));
             }
 
-            cal_state_record_provider
-                .try_commit_lru_updates_to_dal_in_background(cal_max_capacity)
-                .join()
-                .expect("Failed to write back updates to DAL");
+            persisting_results_thread_handler = cal_state_record_provider
+                .try_commit_lru_updates_to_dal_in_background(cal_max_capacity);
         }
     }
 
@@ -195,6 +193,14 @@ fn main() -> Result<(), rusqlite::Error> {
             number_of_games, simulation_duration
         );
     }
+
+    println!("Waiting to complete writing back updates to DAL.");
+
+    persisting_results_thread_handler
+        .join()
+        .expect("Failed to write back updates to DAL");
+
+    println!("Done.");
 
     return Ok(());
 }
