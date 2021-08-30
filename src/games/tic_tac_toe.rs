@@ -1,3 +1,9 @@
+use byte_string::ByteString;
+
+// Working state format is a 2D array of bytes with 0 for unoccupied, 1 for first player's mark, and 2 for second player's mark
+
+// Each state hashes to 2 bytes - just encoding the base_3 sum of the elements from the 2D array working state
+
 type Position = (usize, usize);
 static WINNING_POSITION_SETS: &'static [(Position, Position, Position)] = &[
     // rows
@@ -13,10 +19,10 @@ static WINNING_POSITION_SETS: &'static [(Position, Position, Position)] = &[
     ((0, 2), (1, 1), (2, 0)),
 ];
 
-pub type TicTacToeState = Vec<Vec<i32>>;
+pub type TicTacToeState = Vec<Vec<u8>>;
 
 pub fn create_initial_state() -> TicTacToeState {
-    return vec![vec![-1, -1, -1], vec![-1, -1, -1], vec![-1, -1, -1]];
+    return vec![vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0]];
 }
 
 pub fn fill_vector_with_available_states(
@@ -26,10 +32,10 @@ pub fn fill_vector_with_available_states(
 ) {
     for i in 0..current_state.len() {
         for j in 0..current_state.len() {
-            if current_state[i][j] == -1 {
+            if current_state[i][j] == 0 {
                 // the space is empty
                 let mut available_state = current_state.clone();
-                available_state[i][j] = current_player_index;
+                available_state[i][j] = current_player_index as u8 + 1;
                 available_states.push(available_state);
             }
         }
@@ -44,18 +50,18 @@ pub fn get_terminal_state(_: i32, state: &TicTacToeState) -> Option<i32> {
             state[winning_position_set.2 .0][winning_position_set.2 .1],
         );
 
-        if position_values.0 > -1
+        if position_values.0 > 0
             && position_values.0 == position_values.1
             && position_values.0 == position_values.2
         {
-            return Some(position_values.0 as i32);
+            return Some(position_values.0 as i32 - 1);
         }
     }
 
     let mut is_board_full = true;
     'rows: for i in 0..state.len() {
         for j in 0..state.len() {
-            if state[i][j] == -1 {
+            if state[i][j] == 0 {
                 is_board_full = false;
                 break 'rows;
             }
@@ -69,17 +75,16 @@ pub fn get_terminal_state(_: i32, state: &TicTacToeState) -> Option<i32> {
     return None;
 }
 
-pub fn hash_state(current_player_index: i32, current_state: &TicTacToeState) -> String {
-    let mut state_raw_value: i32 = 0;
-    let mut ternary_digit_multiplier: i32 = 1;
+pub fn hash_state(_: i32, current_state: &TicTacToeState) -> ByteString {
+    let mut state_raw_value: u16 = 0;
+    let mut ternary_digit_multiplier: u16 = 1;
     for i in 0..current_state.len() {
         for j in 0..current_state.len() {
-            let location_value: i32 = current_state[i][j] + 1;
+            let location_value = current_state[i][j] as u16;
             state_raw_value += location_value * ternary_digit_multiplier;
             ternary_digit_multiplier *= 3;
         }
     }
 
-    let state_hash = format!("{}-{:x}", current_player_index, state_raw_value);
-    return state_hash;
+    return ByteString::from(state_raw_value.to_be_bytes().to_vec());
 }

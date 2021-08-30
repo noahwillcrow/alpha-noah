@@ -4,7 +4,7 @@ use std::collections::HashSet;
 // Working state format is a 2D array of bytes with 0 for unoccupied, 1 for first player's standard piece, 11 for first player's double piece,
 // 2 for the second player's piece, and 2 for the second player's double piece
 
-// Each state hashes to a maximum of 25 bytes - a byte to represent who's turn just finished (just 0 or 1) and one byte per piece up to 24 pieces.
+// Each state hashes to a maximum of 25 bytes - a byte to represent how many pieces there are and one byte per piece up to 24 pieces.
 // Each piece is hashed to use two bits to represent its type:
 // - 00 for first player standard
 // - 01 for first player double
@@ -147,13 +147,16 @@ pub fn get_terminal_state(current_player_index: i32, current_state: &CheckersSta
     return Some(other_player_index);
 }
 
-pub fn hash_state(current_player_index: i32, current_state: &CheckersState) -> ByteString {
-    let mut state_hash_bytes = vec![current_player_index as u8];
+pub fn hash_state(_: i32, current_state: &CheckersState) -> ByteString {
+    let mut number_of_pieces: u8 = 0;
+    let mut state_hash_bytes = vec![0 as u8];
 
     for i in 0..current_state.len() {
         for j in 0..current_state.len() {
             let position_value = current_state[i][j];
             if position_value > 0 {
+                number_of_pieces += 1;
+
                 let mut piece_byte = (i * j) as u8;
 
                 match position_value {
@@ -171,6 +174,8 @@ pub fn hash_state(current_player_index: i32, current_state: &CheckersState) -> B
             }
         }
     }
+
+    state_hash_bytes[0] = number_of_pieces;
 
     return ByteString::from(state_hash_bytes);
 }

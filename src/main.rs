@@ -115,7 +115,7 @@ fn main() {
     match game {
         Game::Checkers => {
             let mut state_record_provider =
-                core::state_record_provider::InMemoryStateRecordProvider::new();
+                core::state_record_provider::InMemoryStateByteStringHashRecordProvider::new();
 
             for _ in 0..number_of_games {
                 update_win_counts(core::alpha_noah::execute_standard_turn_based_game(
@@ -134,7 +134,7 @@ fn main() {
         }
         Game::TicTacToe => {
             let mut state_record_provider =
-                core::state_record_provider::InMemoryStateRecordProvider::new();
+                core::state_record_provider::InMemoryStateByteStringHashRecordProvider::new();
 
             for _ in 0..number_of_games {
                 update_win_counts(core::alpha_noah::execute_standard_turn_based_game(
