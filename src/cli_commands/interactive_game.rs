@@ -155,6 +155,8 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
                     Some(winning_player_index) => {
                         if winning_player_index == human_player_index {
                             println!("You won!");
+                        } else if winning_player_index == -1 {
+                            println!("The game ends in a draw.");
                         } else {
                             println!("You lost :(");
                         }

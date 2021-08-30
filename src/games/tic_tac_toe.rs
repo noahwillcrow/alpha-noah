@@ -110,6 +110,10 @@ pub fn create_new_state_from_user_input(
     }
 
     let mut new_state = current_state.clone();
+    if new_state[input_coor.0][input_coor.1] > 0 {
+        return Err(2);
+    }
+
     new_state[input_coor.0][input_coor.1] = current_player_index as u8 + 1;
 
     return Ok(new_state);
