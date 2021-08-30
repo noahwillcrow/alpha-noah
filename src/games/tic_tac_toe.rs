@@ -3,6 +3,8 @@ use byte_string::ByteString;
 // Working state format is a 2D array of bytes with 0 for unoccupied, 1 for first player's mark, and 2 for second player's mark
 
 // Each state hashes to 2 bytes - just encoding the base_3 sum of the elements from the 2D array working state
+// There are (3^9 - 1) total possible states according to a naive calculation (when only allowing for legal states, actually far fewer)
+// log_2(3^9 - 1) < 16, so 2 bytes is sufficient to represent all possible values
 
 type Position = (usize, usize);
 static WINNING_POSITION_SETS: &'static [(Position, Position, Position)] = &[
