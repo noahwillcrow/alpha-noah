@@ -128,13 +128,19 @@ fn main() -> Result<(), rusqlite::Error> {
                     cal_max_capacity,
                     &mut sqlite_state_record_dal,
                 );
+            // using this will make it such that the given player index can't use historical data to behave more intelligently
+            let mut checkers_bot_nerfer_state_record_provider =
+                games::checkers::CheckersBotNerferStateRecordProvider::new(
+                    &mut cal_state_record_provider,
+                    3, // essentially off
+                );
 
             for _ in 0..number_of_games {
                 let (winning_player_index, _state_paths_by_player) =
                     core::alpha_noah::execute_standard_turn_based_game(
                         games::checkers::create_initial_state(),
                         2,
-                        &mut cal_state_record_provider,
+                        &mut checkers_bot_nerfer_state_record_provider,
                         games::checkers::hash_state,
                         games::checkers::fill_vector_with_available_states,
                         &record_weighting_function,

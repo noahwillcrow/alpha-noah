@@ -1,3 +1,5 @@
+use crate::core::state_record::StateRecord;
+use crate::core::state_record_provider::StateRecordProvider;
 use std::collections::HashSet;
 
 // Working state format is a 2D array of bytes with 0 for unoccupied, 1 for first player's standard piece, 11 for first player's double piece,
@@ -394,5 +396,43 @@ fn fill_vector_with_available_capture_move_states_for_piece(
             }
             None => break 'inf_loop,
         }
+    }
+}
+
+pub struct CheckersBotNerferStateRecordProvider<'a> {
+    base_state_record_provider: &'a mut dyn StateRecordProvider<Vec<u8>>,
+    nerfed_player_index: i32,
+}
+
+impl<'a> CheckersBotNerferStateRecordProvider<'a> {
+    pub fn new(
+        base_state_record_provider: &'a mut dyn StateRecordProvider<Vec<u8>>,
+        nerfed_player_index: i32,
+    ) -> CheckersBotNerferStateRecordProvider<'a> {
+        return CheckersBotNerferStateRecordProvider {
+            base_state_record_provider: base_state_record_provider,
+            nerfed_player_index: nerfed_player_index,
+        };
+    }
+}
+
+impl<'a> StateRecordProvider<Vec<u8>> for CheckersBotNerferStateRecordProvider<'a> {
+    fn get_state_record(&mut self, state_hash: &Vec<u8>) -> Option<StateRecord> {
+        let first_byte = state_hash[0];
+        let responsible_player_index = first_byte >> 7;
+
+        if responsible_player_index as i32 == self.nerfed_player_index {
+            // don't get to use the learnings here
+            return Some(StateRecord::new(0, 0, 0));
+        }
+
+        return self
+            .base_state_record_provider
+            .get_state_record(&state_hash);
+    }
+
+    fn update_state_record(&mut self, state_hash: Vec<u8>, did_draw: bool, did_win: bool) {
+        self.base_state_record_provider
+            .update_state_record(state_hash, did_draw, did_win);
     }
 }
