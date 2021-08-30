@@ -1,4 +1,3 @@
-use byte_string::ByteString;
 use std::collections::HashSet;
 
 // Working state format is a 2D array of bytes with 0 for unoccupied, 1 for first player's standard piece, 11 for first player's double piece,
@@ -12,7 +11,9 @@ use std::collections::HashSet;
 // Assuming the inaccurate number of 25 bytes per state, it would take rougly 2.5e12 GB to store every single hash possible to represent all 10^20 states.
 // This implementation assumes that that's not a feasible number of states to actually explore in one iteration of the program.
 // So exactly how does the hashing work here?
-// Each state hashes to a maximum of 25 bytes - a byte to represent how many pieces there are and one byte per piece up to 24 pieces.
+// Each state hashes to a maximum of 25 bytes:
+// - The first byte tracks the player who last moved and the number of pieces on the board
+// - The rest of the bytes each are one byte per piece up to 24 pieces as described below
 // Each piece is hashed to use the first two bits to represent its type:
 // - 00 for first player standard
 // - 01 for first player double
@@ -155,7 +156,7 @@ pub fn get_terminal_state(current_player_index: i32, current_state: &CheckersSta
     return Some(other_player_index);
 }
 
-pub fn hash_state(_: i32, current_state: &CheckersState) -> ByteString {
+pub fn hash_state(responsible_player_index: i32, current_state: &CheckersState) -> Vec<u8> {
     let mut number_of_pieces: u8 = 0;
     let mut state_hash_bytes = vec![0 as u8];
 
@@ -183,9 +184,9 @@ pub fn hash_state(_: i32, current_state: &CheckersState) -> ByteString {
         }
     }
 
-    state_hash_bytes[0] = number_of_pieces;
+    state_hash_bytes[0] = ((responsible_player_index as u8) << 7) + number_of_pieces;
 
-    return ByteString::from(state_hash_bytes);
+    return state_hash_bytes;
 }
 
 fn is_valid_board_coordinate(row: i8, col: i8) -> bool {
@@ -308,7 +309,7 @@ fn fill_vector_with_available_capture_move_states_for_piece(
         ));
     }
 
-    let mut visited_state_hashes: HashSet<ByteString> = HashSet::new();
+    let mut visited_state_hashes: HashSet<Vec<u8>> = HashSet::new();
 
     'inf_loop: loop {
         match capture_possibilities_stack.pop() {

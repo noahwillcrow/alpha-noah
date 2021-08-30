@@ -16,7 +16,7 @@ pub fn execute_standard_turn_based_game<
     initial_state: State,
     number_of_players: i32,
     state_record_provider: &mut dyn StateRecordProvider<HashedState>,
-    hash_state: fn(current_player_index: i32, state: &State) -> HashedState,
+    hash_state: fn(responsible_player_index: i32, state: &State) -> HashedState,
     fill_vector_with_available_states: fn(
         current_player_index: i32,
         current_state: &State,
@@ -89,7 +89,6 @@ pub fn execute_standard_turn_based_game<
             state_record_provider,
             &states_paths_by_player,
             winning_player_index,
-            number_of_players,
         );
     }
 
@@ -107,8 +106,8 @@ fn decide_next_state_index<
     WeighVisitsFn: Fn(i32, i32, i32) -> f32,
 >(
     current_player_index: i32,
-    state_record_provider: &dyn StateRecordProvider<HashedState>,
-    hash_state: fn(current_player_index: i32, state: &State) -> HashedState,
+    state_record_provider: &mut dyn StateRecordProvider<HashedState>,
+    hash_state: fn(responsible_player_index: i32, state: &State) -> HashedState,
     available_states: &[State],
     weigh_record: &WeighRecordFn,
     weight_visits: &WeighVisitsFn,
@@ -126,9 +125,7 @@ fn decide_next_state_index<
     for available_state in available_states.iter() {
         let available_state_hash = hash_state(current_player_index, &available_state);
 
-        match state_record_provider
-            .get_state_record(current_player_index, available_state_hash.clone())
-        {
+        match state_record_provider.get_state_record(&available_state_hash) {
             None => (),
             Some(available_state_record) => {
                 let visits_count = utilities::count_visits(&available_state_record);
@@ -136,7 +133,7 @@ fn decide_next_state_index<
                 min_available_visits = cmp::min(min_available_visits, visits_count);
 
                 available_state_records_by_hash
-                    .insert(available_state_hash, available_state_record);
+                    .insert(available_state_hash, available_state_record.clone());
             }
         }
     }
@@ -172,14 +169,15 @@ fn update_state_records<HashedState: Eq + Hash + Clone>(
     state_record_provider: &mut dyn StateRecordProvider<HashedState>,
     states_paths_by_player: &[Vec<HashedState>],
     winning_player_index: i32,
-    number_of_players: i32,
 ) {
-    for states_path_for_player in states_paths_by_player.iter() {
+    let did_draw = winning_player_index == -1;
+
+    for (player_index, states_path_for_player) in states_paths_by_player.iter().enumerate() {
         for state_hash in states_path_for_player.iter() {
             state_record_provider.update_state_record(
-                &state_hash,
-                winning_player_index,
-                number_of_players,
+                state_hash.clone(),
+                did_draw,
+                player_index as i32 == winning_player_index,
             )
         }
     }

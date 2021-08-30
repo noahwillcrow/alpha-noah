@@ -1,5 +1,3 @@
-use byte_string::ByteString;
-
 // Working state format is a 2D array of bytes with 0 for unoccupied, 1 for first player's mark, and 2 for second player's mark
 
 // Each state hashes to 2 bytes - just encoding the base_3 sum of the elements from the 2D array working state
@@ -77,7 +75,7 @@ pub fn get_terminal_state(_: i32, state: &TicTacToeState) -> Option<i32> {
     return None;
 }
 
-pub fn hash_state(_: i32, current_state: &TicTacToeState) -> ByteString {
+pub fn hash_state(_: i32, current_state: &TicTacToeState) -> Vec<u8> {
     let mut state_raw_value: u16 = 0;
     let mut ternary_digit_multiplier: u16 = 1;
     for i in 0..current_state.len() {
@@ -88,5 +86,5 @@ pub fn hash_state(_: i32, current_state: &TicTacToeState) -> ByteString {
         }
     }
 
-    return ByteString::from(state_raw_value.to_be_bytes().to_vec());
+    return state_raw_value.to_be_bytes().to_vec();
 }

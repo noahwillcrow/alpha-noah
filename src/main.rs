@@ -4,6 +4,7 @@ use std::time::Instant;
 
 mod core;
 mod games;
+mod persistence;
 mod weight_calculators;
 
 enum Game {
@@ -22,7 +23,7 @@ impl FromStr for Game {
     }
 }
 
-fn main() {
+fn main() -> Result<(), rusqlite::Error> {
     let mut game = Game::TicTacToe;
     let mut should_report_simulation_duration = false;
     let mut number_of_games = 100;
@@ -112,16 +113,26 @@ fn main() {
 
     let start_instant = Instant::now();
 
+    let sqlite_connection = rusqlite::Connection::open("./GamesHistory.db")?;
+
     match game {
         Game::Checkers => {
-            let mut state_record_provider =
-                core::state_record_provider::InMemoryStateByteStringHashRecordProvider::new();
+            let mut sqlite_state_record_provider =
+                persistence::sqlite_state_record_provider::SqliteStateRecordProvider::new(
+                    &sqlite_connection,
+                    "checkers",
+                );
+            let mut lru_cache_state_record_provider =
+                persistence::lru_cache_state_record_provider::LruCacheStateRecordProvider::new(
+                    &mut sqlite_state_record_provider,
+                    10_000_000,
+                );
 
             for _ in 0..number_of_games {
                 update_win_counts(core::alpha_noah::execute_standard_turn_based_game(
                     games::checkers::create_initial_state(),
                     2,
-                    &mut state_record_provider,
+                    &mut lru_cache_state_record_provider,
                     games::checkers::hash_state,
                     games::checkers::fill_vector_with_available_states,
                     &record_weighting_function,
@@ -133,14 +144,22 @@ fn main() {
             }
         }
         Game::TicTacToe => {
-            let mut state_record_provider =
-                core::state_record_provider::InMemoryStateByteStringHashRecordProvider::new();
+            let mut sqlite_state_record_provider =
+                persistence::sqlite_state_record_provider::SqliteStateRecordProvider::new(
+                    &sqlite_connection,
+                    "tic-tac-toe",
+                );
+            let mut lru_cache_state_record_provider =
+                persistence::lru_cache_state_record_provider::LruCacheStateRecordProvider::new(
+                    &mut sqlite_state_record_provider,
+                    10_000_000,
+                );
 
             for _ in 0..number_of_games {
                 update_win_counts(core::alpha_noah::execute_standard_turn_based_game(
                     games::tic_tac_toe::create_initial_state(),
                     2,
-                    &mut state_record_provider,
+                    &mut lru_cache_state_record_provider,
                     games::tic_tac_toe::hash_state,
                     games::tic_tac_toe::fill_vector_with_available_states,
                     &record_weighting_function,
@@ -166,4 +185,6 @@ fn main() {
             number_of_games, simulation_duration
         );
     }
+
+    return Ok(());
 }
