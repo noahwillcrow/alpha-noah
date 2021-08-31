@@ -53,7 +53,7 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
         let mut current_game_state = initial_game_state;
         let mut turns_counter = 0;
 
-        while max_number_of_turns > -1 || turns_counter < max_number_of_turns {
+        while max_number_of_turns == -1 || turns_counter < max_number_of_turns {
             let next_player_index = (current_player_index + 1) % number_of_players;
 
             // Check if the current state is terminal given the next player index before starting their turn

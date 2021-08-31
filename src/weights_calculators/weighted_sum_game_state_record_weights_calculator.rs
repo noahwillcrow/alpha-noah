@@ -27,13 +27,17 @@ impl GameStateRecordWeightsCalculator for WeightedSumGameStateRecordWeightsCalcu
         for game_state_record in game_state_records.iter() {
             let visits_count = utility_functions::count_visits(&game_state_record);
             let visits_deficit = highest_visits_count_available - visits_count;
+            let total_weight = (self.draws_weight * game_state_record.draws_count as f32)
+                + (self.losses_weight * game_state_record.losses_count as f32)
+                + (self.wins_weight * game_state_record.wins_count as f32)
+                + (self.visits_deficit_weight * visits_deficit as f32);
 
-            weights.push(
-                (self.draws_weight * game_state_record.draws_count as f32)
-                    + (self.losses_weight * game_state_record.losses_count as f32)
-                    + (self.wins_weight * game_state_record.wins_count as f32)
-                    + (self.visits_deficit_weight * visits_deficit as f32),
-            );
+            weights.push(if total_weight > 0.0 {
+                total_weight
+            } else {
+                // if everything looks bad, just weight towards the one with the fewest visits!
+                (visits_deficit + 1) as f32
+            });
         }
 
         return weights;

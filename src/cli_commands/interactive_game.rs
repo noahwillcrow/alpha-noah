@@ -1,13 +1,22 @@
-use crate::cli_commands::enums::game::Game;
-use std::io;
-use std::io::Write;
+use crate::cli_commands::enums::Game;
+use crate::game_runners::StandardTurnBasedGameRunner;
+use crate::game_state_records_providers::LruCacheFrontedGameStateRecordsProvider;
+use crate::games;
+use crate::persistence::SqliteGameStateRecordsDAL;
+use crate::training::SqliteByteArraySerializedGameStatesTrainer;
+use crate::traits::TurnTaker;
+use crate::turn_takers::{CLIInputPlayerTurnTaker, GameStateRecordWeightedMonteCarloTurnTaker};
+use crate::weights_calculators::WeightedSumGameStateRecordWeightsCalculator;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
     let mut game = Game::TicTacToe;
-    let mut human_player_index = 0;
+    let mut cli_input_player_index = 0;
     let mut draws_weight = 5.0;
     let mut losses_weight = -10.0;
     let mut wins_weight = 10.0;
+    let mut visits_deficit_weight = 20.0;
 
     {
         let mut arg_parser = argparse::ArgumentParser::new();
@@ -19,7 +28,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
         );
 
         arg_parser
-            .refer(&mut human_player_index)
+            .refer(&mut cli_input_player_index)
             .required()
             .add_option(
                 &["-h", "--human-player-index"],
@@ -28,21 +37,27 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
             );
 
         arg_parser.refer(&mut draws_weight).add_option(
-            &["-d", "--drawsweight"],
+            &["--draws-weight"],
             argparse::Parse,
             "Weight of draws for state decisions",
         );
 
         arg_parser.refer(&mut losses_weight).add_option(
-            &["-l", "--lossesweight"],
+            &["--losses-weight"],
             argparse::Parse,
             "Weight of losses for state decisions",
         );
 
         arg_parser.refer(&mut wins_weight).add_option(
-            &["-w", "--winsweight"],
+            &["--wins-weight"],
             argparse::Parse,
             "Weight of wins for state decisions",
+        );
+
+        arg_parser.refer(&mut visits_deficit_weight).add_option(
+            &["--vists-deficit-weight"],
+            argparse::Parse,
+            "Weight of visits deficit for state decisions",
         );
 
         match arg_parser.parse(args, &mut std::io::stdout(), &mut std::io::stderr()) {
@@ -54,123 +69,105 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
         }
     }
 
-    let record_weighting_function =
-        crate::weight_calculators::record_weighting_functions::create_linear_weighted_closure(
-            draws_weight,
-            losses_weight,
-            wins_weight,
-        );
+    let game_state_record_weights_calculator = WeightedSumGameStateRecordWeightsCalculator {
+        draws_weight: draws_weight,
+        losses_weight: losses_weight,
+        wins_weight: wins_weight,
+        visits_deficit_weight: visits_deficit_weight,
+    };
+    let sqlite_db_path = "./GamesHistory.db";
 
     match game {
-        Game::TicTacToe => {
-            let cal_max_capacity: usize = 10_000_000;
-            let mut sqlite_state_record_dal =
-                crate::persistence::sqlite_state_record_dal::SqliteStateRecordDAL::new(
-                    String::from("tic-tac-toe"),
-                    String::from("./GamesHistory.db"),
-                )?;
-            let mut cal_state_record_provider =
-                crate::persistence::cal_state_record_provider::CALStateRecordProvider::new(
-                    cal_max_capacity,
-                    &mut sqlite_state_record_dal,
-                );
+        Game::Checkers => {
+            // let game_name = "checkers";
+            // let logs_serializer_version = 1;
 
-            let mut current_player_index = -1;
-            let mut current_state = crate::games::tic_tac_toe::create_initial_state();
+            // let lru_cache_max_capacity: usize = 10_000_000;
+            // let mut sqlite_game_state_records_dal =
+            //     SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)?;
+            // let mut lru_cache_fronted_game_state_records_provider =
+            //     LruCacheFrontedGameStateRecordsProvider::new(
+            //         lru_cache_max_capacity,
+            //         &mut sqlite_game_state_records_dal,
+            //     );
 
-            loop {
-                current_player_index = (current_player_index + 1) % 2;
-
-                if current_player_index == human_player_index {
-                    'user_input_loop: loop {
-                        println!("Current game board:");
-                        print!(
-                            "{}",
-                            crate::games::tic_tac_toe::convert_state_to_cli_string(&current_state)
-                        );
-                        print!("Please enter desired move: ");
-                        io::stdout().flush().unwrap();
-
-                        let mut user_input_string = String::new();
-                        match io::stdin().read_line(&mut user_input_string) {
-                            Ok(_) => (),
-                            Err(_) => {
-                                println!(
-                                    "Failed to read user input, please try again. User input: {}",
-                                    user_input_string
-                                );
-                                continue 'user_input_loop;
-                            }
-                        }
-
-                        match crate::games::tic_tac_toe::create_new_state_from_user_input(
-                            current_player_index,
-                            &current_state,
-                            &user_input_string,
-                        ) {
-                            Ok(new_state) => {
-                                println!("User input accepted.");
-                                current_state = new_state;
-                                break 'user_input_loop;
-                            }
-                            Err(_) => {
-                                println!(
-                                    "User input was invalid, please try again. User input: {}",
-                                    user_input_string
-                                );
-                                continue 'user_input_loop;
-                            }
-                        }
-                    }
-                } else {
-                    println!(
-                        "Deciding CPU turn for player index {}.",
-                        current_player_index
-                    );
-
-                    match crate::core::alpha_noah::decide_next_state(
-                        current_player_index,
-                        current_state,
-                        &mut cal_state_record_provider,
-                        crate::games::tic_tac_toe::hash_state,
-                        crate::games::tic_tac_toe::fill_vector_with_available_states,
-                        &record_weighting_function,
-                        &crate::weight_calculators::visits_weighting_functions::difference_from_max,
-                    ) {
-                        Ok(new_state) => current_state = new_state,
-                        Err(
-                            crate::core::alpha_noah::DecideNextStateError::NoAvailableStatesError,
-                        ) => {
-                            panic!("How did we end up with no available states but not a terminal condition!?")
-                        }
-                    }
-                }
-
-                match crate::games::tic_tac_toe::get_terminal_state(
-                    current_player_index,
-                    &current_state,
-                ) {
-                    None => (),
-                    Some(winning_player_index) => {
-                        if winning_player_index == human_player_index {
-                            println!("You won!");
-                        } else if winning_player_index == -1 {
-                            println!("The game ends in a draw.");
-                        } else {
-                            println!("You lost :(");
-                        }
-
-                        println!("Final game board:");
-                        print!(
-                            "{}",
-                            crate::games::tic_tac_toe::convert_state_to_cli_string(&current_state)
-                        );
-
-                        return Ok(());
-                    }
-                }
-            }
+            // let base_game_runner = StandardTurnBasedGameRunner::new(game_state_serializer, terminal_game_state_analyzer);
+            // let trainer = SqliteByteArraySerializedGameStatesTrainer::new(
+            //     base_game_runner,
+            //     game_name,
+            //     &mut lru_cache_fronted_game_state_records_provider,
+            //     logs_serializer_version,
+            //     sqlite_db_path,
+            //     vec![&mut lru_cache_fronted_game_state_records_provider],
+            // );
         }
-        _ => panic!("The desired game is not enabled for interactive play"),
+        Game::TicTacToe => {
+            let game_name = "tic-tac-toe";
+            let logs_serializer_version = 1;
+
+            let lru_cache_max_capacity: usize = 10_000_000;
+            let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)?;
+            let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
+            let game_state_records_provider = LruCacheFrontedGameStateRecordsProvider::new(
+                lru_cache_max_capacity,
+                Rc::clone(&game_state_records_dal_rc),
+            );
+            let game_state_records_provider_ref_cell = RefCell::new(game_state_records_provider);
+
+            let game_state_serializer = games::tic_tac_toe::ByteArrayGameStateSerializer {};
+            let terminal_game_state_analyzer = games::tic_tac_toe::TerminalGameStateAnalyzer {};
+
+            let mut base_game_runner = StandardTurnBasedGameRunner::new(
+                &game_state_serializer,
+                &terminal_game_state_analyzer,
+            );
+            let mut trainer = SqliteByteArraySerializedGameStatesTrainer::new(
+                &mut base_game_runner,
+                game_name,
+                logs_serializer_version,
+                &game_state_records_provider_ref_cell,
+                sqlite_db_path,
+                &game_state_records_provider_ref_cell,
+            );
+
+            let available_next_game_states_finder =
+                games::tic_tac_toe::AvailableNextGameStatesFinder {};
+
+            let cpu_player_index = (cli_input_player_index + 1) % 2;
+            let mut cpu_player_turn_taker = GameStateRecordWeightedMonteCarloTurnTaker::new(
+                &available_next_game_states_finder,
+                &game_state_records_provider_ref_cell,
+                &game_state_record_weights_calculator,
+                &game_state_serializer,
+                cpu_player_index,
+            );
+
+            let cli_game_state_formatter = games::tic_tac_toe::CLIGameStateFormatter {};
+            let mut user_input_game_state_creator =
+                games::tic_tac_toe::UserInputGameStateCreator {};
+
+            let mut cli_input_player_turn_taker = CLIInputPlayerTurnTaker::new(
+                &cli_game_state_formatter,
+                cli_input_player_index,
+                &mut user_input_game_state_creator,
+            );
+
+            let mut turn_takers: Vec<&mut dyn TurnTaker<games::tic_tac_toe::GameStateType>> =
+                vec![&mut cpu_player_turn_taker];
+            turn_takers.insert(
+                cli_input_player_index as usize,
+                &mut cli_input_player_turn_taker,
+            );
+
+            trainer.train(
+                1,
+                games::tic_tac_toe::create_initial_game_state,
+                &mut turn_takers,
+                -1,
+                true,
+            );
+        }
     }
+
+    return Ok(());
 }

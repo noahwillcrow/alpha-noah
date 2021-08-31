@@ -26,13 +26,13 @@ impl GameStateRecord {
     }
 }
 
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GameStateUpdate<SerializedGameState: BasicSerializedGameState> {
     pub new_serialized_game_state: SerializedGameState,
     pub responsible_player_index: i32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GameReport<SerializedGameState: BasicSerializedGameState> {
     pub game_state_updates: Vec<GameStateUpdate<SerializedGameState>>,
     pub number_of_players: i32,

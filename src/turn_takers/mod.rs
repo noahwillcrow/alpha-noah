@@ -1,5 +1,5 @@
-mod cli_human_player_turn_taker;
+mod cli_input_player_turn_taker;
 mod game_state_record_weighted_monte_carlo_turn_taker;
 
-pub use cli_human_player_turn_taker::CLIHumanPlayerTurnTaker;
+pub use cli_input_player_turn_taker::CLIInputPlayerTurnTaker;
 pub use game_state_record_weighted_monte_carlo_turn_taker::GameStateRecordWeightedMonteCarloTurnTaker;

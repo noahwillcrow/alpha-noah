@@ -37,7 +37,9 @@ fn main() -> Result<(), rusqlite::Error> {
 
     args.insert(0, format!("command {:?}", command));
     match command {
-        cli_commands::enums::Command::InteractiveGame => return Ok(()), //cli_commands::interactive_game::interactive_game(args),
+        cli_commands::enums::Command::InteractiveGame => {
+            return cli_commands::interactive_game(args)
+        }
         cli_commands::enums::Command::SimulateGames => return cli_commands::simulate_games(args),
     }
 }
