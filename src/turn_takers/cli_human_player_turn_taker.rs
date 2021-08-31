@@ -1,6 +1,5 @@
 use crate::enums::DecideNextStateError;
 use crate::traits::{BasicGameState, CLIGameStateFormatter, TurnTaker, UserInputGameStateCreator};
-use core::fmt::Display;
 use std::io::Write;
 
 pub struct CLIHumanPlayerTurnTaker<'a, GameState: BasicGameState> {
