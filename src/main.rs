@@ -1,14 +1,21 @@
-use crate::cli_commands::enums::command::Command;
 use argparse;
 
 mod cli_commands;
-mod core;
+mod constants;
+mod enums;
+mod game_runners;
+mod game_state_records_providers;
 mod games;
+mod internal;
 mod persistence;
-mod weight_calculators;
+mod structs;
+mod training;
+mod traits;
+mod turn_takers;
+mod weights_calculators;
 
 fn main() -> Result<(), rusqlite::Error> {
-    let mut command = Command::SimulateGames;
+    let mut command = cli_commands::enums::Command::SimulateGames;
     let mut args = vec![];
 
     {
@@ -30,7 +37,7 @@ fn main() -> Result<(), rusqlite::Error> {
 
     args.insert(0, format!("command {:?}", command));
     match command {
-        Command::InteractiveGame => cli_commands::interactive_game::interactive_game(args),
-        Command::SimulateGames => cli_commands::simulate_games::simulate_games(args),
+        cli_commands::enums::Command::InteractiveGame => return Ok(()), //cli_commands::interactive_game::interactive_game(args),
+        cli_commands::enums::Command::SimulateGames => return cli_commands::simulate_games(args),
     }
 }

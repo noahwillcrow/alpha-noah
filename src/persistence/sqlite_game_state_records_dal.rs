@@ -1,34 +1,36 @@
-use crate::core::state_record::StateRecord;
-use crate::persistence::state_record_dal_trait::{IncrementTask, StateRecordDAL};
+use crate::structs::{GameStateRecord, IncrementPersistedGameStateRecordValuesTask};
+use crate::traits::{BasicSerializedGameState, GameStateRecordsDAL};
 use rusqlite::Connection;
 use rusqlite::Error::QueryReturnedNoRows;
 use std::thread;
 
 const MAX_ATTEMPTS_PER_UPDATE: u8 = 3;
 
-pub struct SqliteStateRecordDAL {
+pub struct SqliteGameStateRecordsDAL {
     game_name: String,
     read_only_connection: Connection,
     sqlite_db_path: String,
 }
 
-impl<'a> SqliteStateRecordDAL {
+impl SqliteGameStateRecordsDAL {
     pub fn new(
-        game_name: String,
-        sqlite_db_path: String,
-    ) -> Result<SqliteStateRecordDAL, rusqlite::Error> {
+        game_name: &str,
+        sqlite_db_path: &str,
+    ) -> Result<SqliteGameStateRecordsDAL, rusqlite::Error> {
         let read_only_connection = Connection::open(&sqlite_db_path)?;
 
-        return Ok(SqliteStateRecordDAL {
-            game_name: game_name,
+        return Ok(SqliteGameStateRecordsDAL {
+            game_name: String::from(game_name),
             read_only_connection: read_only_connection,
-            sqlite_db_path: sqlite_db_path,
+            sqlite_db_path: String::from(sqlite_db_path),
         });
     }
 }
 
-impl StateRecordDAL<Vec<u8>> for SqliteStateRecordDAL {
-    fn get_state_record(&mut self, state_hash: &Vec<u8>) -> Option<StateRecord> {
+impl BasicSerializedGameState for Vec<u8> {}
+
+impl GameStateRecordsDAL<Vec<u8>> for SqliteGameStateRecordsDAL {
+    fn get_game_state_record(&mut self, state_hash: &Vec<u8>) -> Option<GameStateRecord> {
         match try_get_state_record_from_db(&self.read_only_connection, &self.game_name, &state_hash)
         {
             Ok(Some(state_record)) => return Some(state_record),
@@ -43,9 +45,9 @@ impl StateRecordDAL<Vec<u8>> for SqliteStateRecordDAL {
         }
     }
 
-    fn increment_state_records_values_in_background(
+    fn increment_game_state_records_values_in_background(
         &self,
-        increment_tasks: Vec<IncrementTask<Vec<u8>>>,
+        increment_tasks: Vec<IncrementPersistedGameStateRecordValuesTask<Vec<u8>>>,
     ) -> thread::JoinHandle<()> {
         let sqlite_db_path = self.sqlite_db_path.clone();
         let game_name = self.game_name.clone();
@@ -87,12 +89,12 @@ fn try_get_state_record_from_db(
     connection: &Connection,
     game_name: &str,
     state_hash: &Vec<u8>,
-) -> rusqlite::Result<Option<StateRecord>> {
+) -> rusqlite::Result<Option<GameStateRecord>> {
     let query_result = connection.query_row(
         "SELECT DrawsCount, LossesCount, WinsCount FROM GameStateRecords WHERE GameName = ?1 AND StateHash = ?2",
         rusqlite::params![game_name, &state_hash],
         |row| {
-            return Ok(StateRecord {
+            return Ok(GameStateRecord {
                 draws_count: row.get(0)?,
                 losses_count: row.get(1)?,
                 wins_count: row.get(2)?,
@@ -109,11 +111,15 @@ fn try_get_state_record_from_db(
 fn write_state_record_increment_to_db(
     connection: &Connection,
     game_name: &str,
-    increment_task: &IncrementTask<Vec<u8>>,
+    increment_task: &IncrementPersistedGameStateRecordValuesTask<Vec<u8>>,
 ) -> Result<(), rusqlite::Error> {
-    match try_get_state_record_from_db(&connection, &game_name, &increment_task.state_hash)? {
+    match try_get_state_record_from_db(
+        &connection,
+        &game_name,
+        &increment_task.serialized_game_state,
+    )? {
         Some(old_state_record) => {
-            let new_state_record = StateRecord::new(
+            let new_state_record = GameStateRecord::new(
                 old_state_record.draws_count + increment_task.draws_count_addend,
                 old_state_record.losses_count + increment_task.losses_count_addend,
                 old_state_record.wins_count + increment_task.wins_count_addend,
@@ -121,7 +127,7 @@ fn write_state_record_increment_to_db(
 
             connection.execute(
                 "UPDATE GameStateRecords SET DrawsCount = ?1, LossesCount = ?2, WinsCount = ?3 WHERE GameName = ?4 AND StateHash = ?5",
-                rusqlite::params![new_state_record.draws_count, new_state_record.losses_count, new_state_record.wins_count, game_name, &increment_task.state_hash],
+                rusqlite::params![new_state_record.draws_count, new_state_record.losses_count, new_state_record.wins_count, game_name, &increment_task.serialized_game_state],
             )?;
         }
         None => {
@@ -129,7 +135,7 @@ fn write_state_record_increment_to_db(
                 "INSERT INTO GameStateRecords (GameName, StateHash, DrawsCount, LossesCount, WinsCount) VALUES (?1, ?2, ?3, ?4, ?5)",
                 rusqlite::params![
                     game_name,
-                    &increment_task.state_hash,
+                    &increment_task.serialized_game_state,
                     increment_task.draws_count_addend,
                     increment_task.losses_count_addend,
                     increment_task.wins_count_addend

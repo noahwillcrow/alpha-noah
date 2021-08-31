@@ -19,9 +19,9 @@ static WINNING_POSITION_SETS: &'static [(Position, Position, Position)] = &[
     ((0, 2), (1, 1), (2, 0)),
 ];
 
-pub type TicTacToeState = Vec<Vec<u8>>;
+pub type TicTacToeGameState = Vec<Vec<u8>>;
 
-pub fn create_initial_state() -> TicTacToeState {
+pub fn create_initial_game_state() -> TicTacToeGameState {
     return vec![vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0]];
 }
 
@@ -124,8 +124,7 @@ pub fn convert_state_to_cli_string(current_state: &TicTacToeState) -> String {
         "\
         {}|{}|{}\n\
         {}|{}|{}\n\
-        {}|{}|{}\n\
-    ",
+        {}|{}|{}\n",
         convert_space_value_to_cli_string(current_state[0][0]),
         convert_space_value_to_cli_string(current_state[0][1]),
         convert_space_value_to_cli_string(current_state[0][2]),

@@ -1,0 +1,3 @@
+mod weighted_sum_game_state_record_weights_calculator;
+
+pub use weighted_sum_game_state_record_weights_calculator::WeightedSumGameStateRecordWeightsCalculator;

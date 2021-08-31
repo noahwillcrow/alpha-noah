@@ -11,6 +11,7 @@ CREATE TABLE GameLogs (
     ID INTEGER NOT NULL PRIMARY KEY,
     GameName TEXT NOT NULL,
     Log BLOB NOT NULL,
+    LogSerializerVersion INTEGER NOT NULL,
     WinningPlayerIndex INTEGER NOT NULL
 );
 

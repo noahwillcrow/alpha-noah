@@ -111,6 +111,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
                             Ok(new_state) => {
                                 println!("User input accepted.");
                                 current_state = new_state;
+                                break 'user_input_loop;
                             }
                             Err(_) => {
                                 println!(
@@ -120,8 +121,6 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
                                 continue 'user_input_loop;
                             }
                         }
-
-                        break 'user_input_loop;
                     }
                 } else {
                     println!(
