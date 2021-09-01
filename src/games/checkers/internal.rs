@@ -106,19 +106,23 @@ pub fn fill_vector_with_available_capture_move_states_for_piece(
         ));
     }
 
-    let mut visited_options: HashSet<(Vec<u8>, (i8, i8))> = HashSet::new();
+    let mut visited_options: HashSet<(Vec<u8>, (usize, usize), (i8, i8))> = HashSet::new();
 
     loop {
         match capture_possibilities_stack.pop() {
             Some((start_game_state, move_from_coor, capture_dir)) => {
                 let serialized_start_game_state =
                     serialize_game_state(current_player_index, &start_game_state);
-                if visited_options.contains(&(serialized_start_game_state.clone(), capture_dir)) {
+                let visited_options_key = (
+                    serialized_start_game_state.clone(),
+                    move_from_coor,
+                    capture_dir,
+                );
+                if visited_options.contains(&visited_options_key) {
                     // already visited this state and explored it
                     continue;
                 }
-                visited_options
-                    .insert((serialized_start_game_state, (capture_dir.0, capture_dir.1)));
+                visited_options.insert(visited_options_key);
 
                 if !is_valid_board_coordinate(
                     move_from_coor.0 as i8 + (capture_dir.0 * 2),
