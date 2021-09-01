@@ -53,8 +53,7 @@ impl GameStateRecordsDAL<Vec<u8>> for SqliteGameStateRecordsDAL {
         let game_name = self.game_name.clone();
 
         return thread::spawn(move || {
-            let write_connection: Connection;
-
+            let mut write_connection: Connection;
             match Connection::open(&sqlite_db_path) {
                 Ok(opened_connection) => {
                     write_connection = opened_connection;
@@ -65,20 +64,37 @@ impl GameStateRecordsDAL<Vec<u8>> for SqliteGameStateRecordsDAL {
                 }
             }
 
+            let sqlite_transaction: rusqlite::Transaction;
+            match write_connection.transaction() {
+                Ok(value) => sqlite_transaction = value,
+                Err(err) => {
+                    println!("Failed to start transaction for persisting updates. Updates will be dropped. Error: {}", err);
+                    return;
+                }
+            }
+
             for increment_task in increment_tasks.iter() {
                 let mut attempts_counter: u8 = 0;
 
                 'attempts_loop: while attempts_counter < MAX_ATTEMPTS_PER_UPDATE {
-                    let increment_result = write_state_record_increment_to_db(
-                        &write_connection,
-                        &game_name,
-                        &increment_task,
+                    let execute_result = sqlite_transaction.execute(
+                        "INSERT INTO GameStateRecords(GameName, StateHash, DrawsCount, LossesCount, WinsCount) VALUES (?1, ?2, ?3, ?4, ?5)\
+                        ON CONFLICT(GameName, Statehash) DO UPDATE SET DrawsCount = DrawsCount + ?3, LossesCount = LossesCount + ?4, WinsCount = WinsCount + ?5",
+                        rusqlite::params![game_name, increment_task.serialized_game_state, increment_task.draws_count_addend, increment_task.losses_count_addend, increment_task.wins_count_addend]
                     );
 
-                    match increment_result {
+                    match execute_result {
                         Ok(_) => break 'attempts_loop,
                         Err(_) => attempts_counter += 1,
                     };
+                }
+            }
+
+            match sqlite_transaction.commit() {
+                Ok(_) => (),
+                Err(err) => {
+                    println!("Failed to commit transaction for persisting updates. Updates will be dropped. Error: {}", err);
+                    return;
                 }
             }
         });
@@ -106,43 +122,4 @@ fn try_get_state_record_from_db(
         Err(QueryReturnedNoRows) => return Ok(None),
         Err(err) => return Err(err),
     }
-}
-
-fn write_state_record_increment_to_db(
-    connection: &Connection,
-    game_name: &str,
-    increment_task: &IncrementPersistedGameStateRecordValuesTask<Vec<u8>>,
-) -> Result<(), rusqlite::Error> {
-    match try_get_state_record_from_db(
-        &connection,
-        &game_name,
-        &increment_task.serialized_game_state,
-    )? {
-        Some(old_state_record) => {
-            let new_state_record = GameStateRecord::new(
-                old_state_record.draws_count + increment_task.draws_count_addend,
-                old_state_record.losses_count + increment_task.losses_count_addend,
-                old_state_record.wins_count + increment_task.wins_count_addend,
-            );
-
-            connection.execute(
-                "UPDATE GameStateRecords SET DrawsCount = ?1, LossesCount = ?2, WinsCount = ?3 WHERE GameName = ?4 AND StateHash = ?5",
-                rusqlite::params![new_state_record.draws_count, new_state_record.losses_count, new_state_record.wins_count, game_name, &increment_task.serialized_game_state],
-            )?;
-        }
-        None => {
-            connection.execute(
-                "INSERT INTO GameStateRecords (GameName, StateHash, DrawsCount, LossesCount, WinsCount) VALUES (?1, ?2, ?3, ?4, ?5)",
-                rusqlite::params![
-                    game_name,
-                    &increment_task.serialized_game_state,
-                    increment_task.draws_count_addend,
-                    increment_task.losses_count_addend,
-                    increment_task.wins_count_addend
-                ],
-            )?;
-        }
-    }
-
-    return Ok(());
 }

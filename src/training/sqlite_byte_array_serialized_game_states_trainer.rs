@@ -42,7 +42,7 @@ impl<'a, GameState: BasicGameState> SqliteByteArraySerializedGameStatesTrainer<'
         turn_takers: &mut Vec<&mut dyn TurnTaker<GameState>>,
         max_number_of_turns: i32,
         is_reaching_max_number_of_turns_a_draw: bool,
-    ) {
+    ) -> Result<(), rusqlite::Error> {
         let mut game_reports: Vec<GameReport<Vec<u8>>> = vec![];
 
         println!(
@@ -108,21 +108,30 @@ impl<'a, GameState: BasicGameState> SqliteByteArraySerializedGameStatesTrainer<'
 
         println!("Saving game logs.");
         let save_game_logs_start_instant = Instant::now();
-        let sqlite_connection = Connection::open(&self.sqlite_db_path).unwrap();
 
-        for game_report in game_reports.iter() {
-            let mut log_entry: Vec<u8> = vec![];
-            for game_state_update in &game_report.game_state_updates {
-                log_entry.append(&mut game_state_update.new_serialized_game_state.clone());
+        let mut sqlite_connection = Connection::open(&self.sqlite_db_path).unwrap();
+        let sqlite_transaction: rusqlite::Transaction = sqlite_connection.transaction()?;
+
+        loop {
+            match game_reports.pop() {
+                Some(game_report) => {
+                    let mut log_entry: Vec<u8> = vec![];
+                    for game_state_update in &game_report.game_state_updates {
+                        log_entry.append(&mut game_state_update.new_serialized_game_state.clone());
+                    }
+                    sqlite_transaction
+                        .execute(
+                            "INSERT INTO GameLogs (GameName, Log, LogSerializerVersion, WinningPlayerIndex) VALUES (?1, ?2, ?3, ?4)",
+                            rusqlite::params![self.game_name, log_entry, self.logs_serializer_version, game_report.winning_player_index],
+                        )?;
+                }
+                None => {
+                    break;
+                }
             }
-
-            sqlite_connection
-                .execute(
-                    "INSERT INTO GameLogs (GameName, Log, LogSerializerVersion, WinningPlayerIndex) VALUES (?1, ?2, ?3, ?4)",
-                    rusqlite::params![self.game_name, log_entry, self.logs_serializer_version, game_report.winning_player_index],
-                )
-                .unwrap();
         }
+
+        sqlite_transaction.commit()?;
 
         println!(
             "Saving game logs completed. Duration: {:?}",
@@ -130,5 +139,6 @@ impl<'a, GameState: BasicGameState> SqliteByteArraySerializedGameStatesTrainer<'
         );
 
         println!("Done training.");
+        return Ok(());
     }
 }

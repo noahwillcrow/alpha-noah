@@ -172,7 +172,7 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), rusqlite::Error> {
                 &mut vec![&mut first_player_turn_taker, &mut second_player_turn_taker],
                 max_number_of_turns,
                 is_reaching_max_number_of_turns_a_draw,
-            );
+            )?;
         }
     }
 

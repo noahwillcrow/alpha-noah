@@ -165,7 +165,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
                 &mut turn_takers,
                 -1,
                 true,
-            );
+            )?;
         }
     }
 
