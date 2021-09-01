@@ -91,27 +91,60 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), rusqlite::Error> {
 
     match game {
         Game::Checkers => {
-            // let game_name = "checkers";
-            // let logs_serializer_version = 1;
+            let game_name = "checkers";
+            let logs_serializer_version = 1;
 
-            // let lru_cache_max_capacity: usize = 10_000_000;
-            // let mut sqlite_game_state_records_dal =
-            //     SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)?;
-            // let mut lru_cache_fronted_game_state_records_provider =
-            //     LruCacheFrontedGameStateRecordsProvider::new(
-            //         lru_cache_max_capacity,
-            //         &mut sqlite_game_state_records_dal,
-            //     );
+            let lru_cache_max_capacity: usize = 10_000_000;
+            let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)?;
+            let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
+            let game_state_records_provider = LruCacheFrontedGameStateRecordsProvider::new(
+                lru_cache_max_capacity,
+                Rc::clone(&game_state_records_dal_rc),
+            );
+            let game_state_records_provider_ref_cell = RefCell::new(game_state_records_provider);
 
-            // let base_game_runner = StandardTurnBasedGameRunner::new(game_state_serializer, terminal_game_state_analyzer);
-            // let trainer = SqliteByteArraySerializedGameStatesTrainer::new(
-            //     base_game_runner,
-            //     game_name,
-            //     &mut lru_cache_fronted_game_state_records_provider,
-            //     logs_serializer_version,
-            //     sqlite_db_path,
-            //     vec![&mut lru_cache_fronted_game_state_records_provider],
-            // );
+            let game_state_serializer = games::checkers::ByteArrayGameStateSerializer {};
+            let terminal_game_state_analyzer = games::checkers::TerminalGameStateAnalyzer {};
+
+            let mut base_game_runner = StandardTurnBasedGameRunner::new(
+                &game_state_serializer,
+                &terminal_game_state_analyzer,
+            );
+            let mut trainer = SqliteByteArraySerializedGameStatesTrainer::new(
+                &mut base_game_runner,
+                game_name,
+                logs_serializer_version,
+                &game_state_records_provider_ref_cell,
+                sqlite_db_path,
+                &game_state_records_provider_ref_cell,
+            );
+
+            let available_next_game_states_finder =
+                games::checkers::AvailableNextGameStatesFinder {};
+
+            let mut first_player_turn_taker = GameStateRecordWeightedMonteCarloTurnTaker::new(
+                &available_next_game_states_finder,
+                &game_state_records_provider_ref_cell,
+                &game_state_record_weights_calculator,
+                &game_state_serializer,
+                0,
+            );
+
+            let mut second_player_turn_taker = GameStateRecordWeightedMonteCarloTurnTaker::new(
+                &available_next_game_states_finder,
+                &game_state_records_provider_ref_cell,
+                &game_state_record_weights_calculator,
+                &game_state_serializer,
+                1,
+            );
+
+            trainer.train(
+                number_of_games,
+                games::checkers::create_initial_game_state,
+                &mut vec![&mut first_player_turn_taker, &mut second_player_turn_taker],
+                max_number_of_turns,
+                is_reaching_max_number_of_turns_a_draw,
+            )?;
         }
         Game::TicTacToe => {
             let game_name = "tic-tac-toe";
@@ -153,11 +186,6 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), rusqlite::Error> {
                 0,
             );
 
-            // let humans in!
-            // let fmtr = games::tic_tac_toe::CLIGameStateFormatter {};
-            // let mut ui = games::tic_tac_toe::UserInputGameStateCreator {};
-            // let mut second_player_turn_taker =
-            //     crate::turn_takers::CLIHumanPlayerTurnTaker::new(&fmtr, 1, &mut ui);
             let mut second_player_turn_taker = GameStateRecordWeightedMonteCarloTurnTaker::new(
                 &available_next_game_states_finder,
                 &game_state_records_provider_ref_cell,
