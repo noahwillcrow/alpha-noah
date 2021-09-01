@@ -5,6 +5,7 @@ pub const MAX_ROW: i8 = 7;
 pub const MAX_COL: i8 = 7;
 
 pub struct MoveSearchParameters {
+    pub forward_row_direction: i8,
     pub single_piece_value: u8,
     pub double_piece_value: u8,
     pub single_piece_available_directions: [(i8, i8); 2],
@@ -37,7 +38,7 @@ pub fn fill_vector_with_current_player_owned_pieces_info_for_move_search<'l>(
 
 pub fn fill_vector_with_available_simple_move_states_for_piece(
     current_game_state: &CheckersGameState,
-    current_coor: &(usize, usize),
+    start_coor: &(usize, usize),
     available_directions: &[(i8, i8)],
     single_piece_value: u8,
     double_piece_value: u8,
@@ -45,12 +46,12 @@ pub fn fill_vector_with_available_simple_move_states_for_piece(
     available_simple_move_states: &mut Vec<CheckersGameState>,
     max_number_of_moves_to_find: i32,
 ) {
-    let current_game_state_space_value = current_game_state[current_coor.0][current_coor.1];
+    let current_game_state_space_value = current_game_state[start_coor.0][start_coor.1];
 
     for direction in available_directions.iter() {
         let simple_move_coor = (
-            current_coor.0 as i8 + direction.0,
-            current_coor.1 as i8 + direction.1,
+            start_coor.0 as i8 + direction.0,
+            start_coor.1 as i8 + direction.1,
         );
 
         if !is_valid_board_coordinate(simple_move_coor.0, simple_move_coor.1) {
@@ -61,7 +62,7 @@ pub fn fill_vector_with_available_simple_move_states_for_piece(
             current_game_state[simple_move_coor.0 as usize][simple_move_coor.1 as usize];
         if simple_move_space_value == 0 {
             let mut simple_move_state = current_game_state.clone();
-            simple_move_state[current_coor.0][current_coor.1] = 0;
+            simple_move_state[start_coor.0][start_coor.1] = 0;
 
             if current_game_state_space_value == single_piece_value
                 && simple_move_coor.0 as usize == double_row
@@ -87,7 +88,7 @@ pub fn fill_vector_with_available_simple_move_states_for_piece(
 pub fn fill_vector_with_available_capture_move_states_for_piece(
     current_player_index: i32,
     current_game_state: &CheckersGameState,
-    current_coor: &(usize, usize),
+    start_coor: &(usize, usize),
     available_directions: &[(i8, i8)],
     single_piece_value: u8,
     double_piece_value: u8,
@@ -100,68 +101,65 @@ pub fn fill_vector_with_available_capture_move_states_for_piece(
     for direction in available_directions.iter() {
         capture_possibilities_stack.push((
             current_game_state.clone(),
-            (current_coor.0, current_coor.1),
+            (start_coor.0, start_coor.1),
             (direction.0, direction.1),
         ));
     }
 
-    let mut visited_serialized_game_states: HashSet<Vec<u8>> = HashSet::new();
+    let mut visited_options: HashSet<(Vec<u8>, (i8, i8))> = HashSet::new();
 
-    'inf_loop: loop {
+    loop {
         match capture_possibilities_stack.pop() {
-            Some((start_game_state, start_space_coor, capture_dir)) => {
+            Some((start_game_state, move_from_coor, capture_dir)) => {
                 let serialized_start_game_state =
                     serialize_game_state(current_player_index, &start_game_state);
-                if visited_serialized_game_states.contains(&serialized_start_game_state) {
+                if visited_options.contains(&(serialized_start_game_state.clone(), capture_dir)) {
                     // already visited this state and explored it
-                    continue 'inf_loop;
+                    continue;
                 }
-                visited_serialized_game_states.insert(serialized_start_game_state);
+                visited_options
+                    .insert((serialized_start_game_state, (capture_dir.0, capture_dir.1)));
 
                 if !is_valid_board_coordinate(
-                    start_space_coor.0 as i8 + (capture_dir.0 * 2),
-                    start_space_coor.1 as i8 + (capture_dir.1 * 2),
+                    move_from_coor.0 as i8 + (capture_dir.0 * 2),
+                    move_from_coor.1 as i8 + (capture_dir.1 * 2),
                 ) {
                     // not a valid jump as it would go out of bounds
-                    continue 'inf_loop;
+                    continue;
                 }
 
-                let simple_move_coor = (
-                    start_space_coor.0 as i8 + capture_dir.0,
-                    start_space_coor.1 as i8 + capture_dir.1,
+                let captured_piece_coor = (
+                    (move_from_coor.0 as i8 + capture_dir.0) as usize,
+                    (move_from_coor.1 as i8 + capture_dir.1) as usize,
                 );
-                let simple_move_space_value =
-                    current_game_state[simple_move_coor.0 as usize][simple_move_coor.1 as usize];
-                if simple_move_space_value == single_piece_value
-                    || simple_move_space_value == double_piece_value
+                let captured_piece_space_value =
+                    current_game_state[captured_piece_coor.0][captured_piece_coor.1];
+                if captured_piece_space_value == 0
+                    || captured_piece_space_value == single_piece_value
+                    || captured_piece_space_value == double_piece_value
                 {
-                    // not a valid jump as you jump over your own pieces
-                    continue 'inf_loop;
+                    // not a valid jump as you jump over your own pieces or empty spaces
+                    continue;
                 }
 
                 let capture_move_space_coor = (
-                    (start_space_coor.0 as i8 + (capture_dir.0 * 2)) as usize,
-                    (start_space_coor.1 as i8 + (capture_dir.1 * 2)) as usize,
+                    (move_from_coor.0 as i8 + (capture_dir.0 * 2)) as usize,
+                    (move_from_coor.1 as i8 + (capture_dir.1 * 2)) as usize,
                 );
-                let capture_move_space_value = start_game_state[capture_move_space_coor.0 as usize]
-                    [capture_move_space_coor.1 as usize];
+                let capture_move_space_value =
+                    start_game_state[capture_move_space_coor.0][capture_move_space_coor.1];
                 if capture_move_space_value > 0 {
                     // not a valid jump as the space two ahead is not empty
-                    continue 'inf_loop;
+                    continue;
                 }
 
                 // a capture is possible!
                 let mut capture_move_state = start_game_state.clone();
-                capture_move_state[start_space_coor.0][start_space_coor.1] = 0;
-
-                let captured_piece_space_coor = (
-                    (start_space_coor.0 as i8 + capture_dir.0) as usize,
-                    (start_space_coor.1 as i8 + capture_dir.1) as usize,
-                );
-                capture_move_state[captured_piece_space_coor.0][captured_piece_space_coor.1] = 0;
+                capture_move_state[move_from_coor.0][move_from_coor.1] = 0;
+                capture_move_state[captured_piece_coor.0][captured_piece_coor.1] = 0;
 
                 let start_game_state_space_value =
-                    start_game_state[start_space_coor.0][start_space_coor.1];
+                    start_game_state[move_from_coor.0][move_from_coor.1];
                 if start_game_state_space_value == single_piece_value
                     && capture_move_space_coor.0 == double_row
                 {
@@ -190,7 +188,7 @@ pub fn fill_vector_with_available_capture_move_states_for_piece(
                     return;
                 }
             }
-            None => break 'inf_loop,
+            None => break,
         }
     }
 }
@@ -201,6 +199,7 @@ pub fn get_player_specific_move_search_parameters(
     let forward_row_direction: i8 = if current_player_index == 0 { 1 } else { -1 };
 
     return MoveSearchParameters {
+        forward_row_direction: forward_row_direction,
         single_piece_value: (if current_player_index == 0 { 1 } else { 2 }) as u8,
         double_piece_value: if current_player_index == 0 { 11 } else { 22 },
         single_piece_available_directions: [

@@ -21,6 +21,7 @@ impl TAvailableNextGameStatesFinder<CheckersGameState> for AvailableNextGameStat
             &move_search_params,
             &mut owned_pieces_info,
         );
+
         // find any available capture moves
         for (current_coor, available_directions) in owned_pieces_info.iter() {
             fill_vector_with_available_capture_move_states_for_piece(
@@ -40,6 +41,7 @@ impl TAvailableNextGameStatesFinder<CheckersGameState> for AvailableNextGameStat
             // Just return and don't waste time finding those moves
             return available_next_states;
         }
+
         // no capture moves are available
         // so let's see what simple moves exist
         for (current_coor, available_directions) in owned_pieces_info.iter() {

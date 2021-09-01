@@ -114,5 +114,5 @@ pub trait UserInputGameStateCreator<GameState: BasicGameState, UserInputType> {
         current_player_index: i32,
         current_game_state: &GameState,
         user_input: UserInputType,
-    ) -> Result<GameState, &str>;
+    ) -> Result<GameState, String>;
 }

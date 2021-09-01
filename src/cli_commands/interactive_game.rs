@@ -79,27 +79,70 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
 
     match game {
         Game::Checkers => {
-            // let game_name = "checkers";
-            // let logs_serializer_version = 1;
+            let game_name = "checkers";
+            let logs_serializer_version = 1;
 
-            // let lru_cache_max_capacity: usize = 10_000_000;
-            // let mut sqlite_game_state_records_dal =
-            //     SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)?;
-            // let mut lru_cache_fronted_game_state_records_provider =
-            //     LruCacheFrontedGameStateRecordsProvider::new(
-            //         lru_cache_max_capacity,
-            //         &mut sqlite_game_state_records_dal,
-            //     );
+            let lru_cache_max_capacity: usize = 10_000_000;
+            let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)?;
+            let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
+            let game_state_records_provider = LruCacheFrontedGameStateRecordsProvider::new(
+                lru_cache_max_capacity,
+                Rc::clone(&game_state_records_dal_rc),
+            );
+            let game_state_records_provider_ref_cell = RefCell::new(game_state_records_provider);
 
-            // let base_game_runner = StandardTurnBasedGameRunner::new(game_state_serializer, terminal_game_state_analyzer);
-            // let trainer = SqliteByteArraySerializedGameStatesTrainer::new(
-            //     base_game_runner,
-            //     game_name,
-            //     &mut lru_cache_fronted_game_state_records_provider,
-            //     logs_serializer_version,
-            //     sqlite_db_path,
-            //     vec![&mut lru_cache_fronted_game_state_records_provider],
-            // );
+            let game_state_serializer = games::checkers::ByteArrayGameStateSerializer {};
+            let terminal_game_state_analyzer = games::checkers::TerminalGameStateAnalyzer {};
+
+            let mut base_game_runner = StandardTurnBasedGameRunner::new(
+                &game_state_serializer,
+                &terminal_game_state_analyzer,
+            );
+            let mut trainer = SqliteByteArraySerializedGameStatesTrainer::new(
+                &mut base_game_runner,
+                game_name,
+                logs_serializer_version,
+                &game_state_records_provider_ref_cell,
+                sqlite_db_path,
+                &game_state_records_provider_ref_cell,
+            );
+
+            let available_next_game_states_finder =
+                games::checkers::AvailableNextGameStatesFinder {};
+
+            let cpu_player_index = (cli_input_player_index + 1) % 2;
+            let mut cpu_player_turn_taker = GameStateRecordWeightedMonteCarloTurnTaker::new(
+                &available_next_game_states_finder,
+                &game_state_records_provider_ref_cell,
+                &game_state_record_weights_calculator,
+                &game_state_serializer,
+                cpu_player_index,
+            );
+
+            let cli_game_state_formatter = games::checkers::CLIGameStateFormatter {};
+            let mut user_input_game_state_creator =
+                games::checkers::UserInputGameStateCreator::new();
+
+            let mut cli_input_player_turn_taker = CLIInputPlayerTurnTaker::new(
+                &cli_game_state_formatter,
+                cli_input_player_index,
+                &mut user_input_game_state_creator,
+            );
+
+            let mut turn_takers: Vec<&mut dyn TurnTaker<games::checkers::GameStateType>> =
+                vec![&mut cpu_player_turn_taker];
+            turn_takers.insert(
+                cli_input_player_index as usize,
+                &mut cli_input_player_turn_taker,
+            );
+
+            trainer.train(
+                1,
+                games::checkers::create_initial_game_state,
+                &mut turn_takers,
+                -1,
+                true,
+            )?;
         }
         Game::TicTacToe => {
             let game_name = "tic-tac-toe";

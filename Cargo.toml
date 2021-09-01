@@ -10,4 +10,5 @@ argparse = "0.2.2"
 crossbeam = "0.8.1"
 lru = "0.6.6"
 rand = "0.8.0"
+regex = "1"
 rusqlite = {version = "0.25.3", features = ["bundled"]}
