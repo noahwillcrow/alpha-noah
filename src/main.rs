@@ -1,6 +1,6 @@
 use argparse;
 
-mod cli_commands;
+mod cli;
 mod constants;
 mod enums;
 mod game_runners;
@@ -15,7 +15,7 @@ mod turn_takers;
 mod weights_calculators;
 
 fn main() -> Result<(), rusqlite::Error> {
-    let mut command = cli_commands::enums::Command::SimulateGames;
+    let mut command = cli::enums::Command::SimulateGames;
     let mut args = vec![];
 
     {
@@ -37,9 +37,7 @@ fn main() -> Result<(), rusqlite::Error> {
 
     args.insert(0, format!("command {:?}", command));
     match command {
-        cli_commands::enums::Command::InteractiveGame => {
-            return cli_commands::interactive_game(args)
-        }
-        cli_commands::enums::Command::SimulateGames => return cli_commands::simulate_games(args),
+        cli::enums::Command::InteractiveGame => return cli::interactive_game(args),
+        cli::enums::Command::SimulateGames => return cli::simulate_games(args),
     }
 }
