@@ -69,7 +69,7 @@ impl<
         let mut draws_count = 0;
         let mut inconclusive_games_count = 0;
         let mut wins_counts_by_player_index = vec![0; 2];
-        let mut update_wins_counts = |winning_player_index: i32| {
+        let mut update_result_counts = |winning_player_index: i32| {
             if winning_player_index >= 0 {
                 wins_counts_by_player_index[winning_player_index as usize] += 1;
             } else if winning_player_index == -1 {
@@ -89,7 +89,7 @@ impl<
             match run_game_result {
                 Ok(game_report_option) => match game_report_option {
                     Some(game_report) => {
-                        update_wins_counts(game_report.winning_player_index);
+                        update_result_counts(game_report.winning_player_index);
                         update_game_state_records(
                             self.game_state_records_provider_ref_cell,
                             game_report.clone(),

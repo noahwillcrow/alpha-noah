@@ -67,7 +67,7 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
         );
 
         arg_parser.refer(&mut visits_deficit_weight).add_option(
-            &["--vists-deficit-weight"],
+            &["--visits-deficit-weight"],
             argparse::Parse,
             "Weight of visits deficit for state decisions",
         );
