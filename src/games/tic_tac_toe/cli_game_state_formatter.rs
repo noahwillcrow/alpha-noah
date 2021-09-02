@@ -6,10 +6,10 @@ pub struct CLIGameStateFormatter {}
 impl TCLIGameStateFormatter<TicTacToeGameState> for CLIGameStateFormatter {
     fn format_game_state_for_cli(&self, game_state: &TicTacToeGameState) -> String {
         return format!(
-            "\
-            {}|{}|{}\n\
-            {}|{}|{}\n\
-            {}|{}|{}\n",
+            "    0|1|2\n\
+            0 - {}|{}|{}\n\
+            1 - {}|{}|{}\n\
+            2 - {}|{}|{}\n",
             convert_space_value_to_cli_string(game_state[0][0]),
             convert_space_value_to_cli_string(game_state[0][1]),
             convert_space_value_to_cli_string(game_state[0][2]),
