@@ -4,8 +4,8 @@ use crate::game_state_records_providers::LruCacheFrontedGameStateRecordsProvider
 use crate::games;
 use crate::persistence::{SqliteByteArrayLogGameReportsPersister, SqliteGameStateRecordsDAL};
 use crate::training::StandardTrainer;
-use crate::turn_takers::GameStateRecordWeightedMonteCarloTurnTaker;
-use crate::weights_calculators::WeightedSumGameStateRecordWeightsCalculator;
+use crate::turn_takers::WeightedGameStatesMonteCarloTurnTaker;
+use crate::weights_calculators::RecordValuesWeightedSumGameStateWeightsCalculator;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -81,12 +81,6 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
         }
     }
 
-    let game_state_record_weights_calculator = WeightedSumGameStateRecordWeightsCalculator {
-        draws_weight: draws_weight,
-        losses_weight: losses_weight,
-        wins_weight: wins_weight,
-        visits_deficit_weight: visits_deficit_weight,
-    };
     let sqlite_db_path = "./GamesHistory.db";
 
     match game {
@@ -134,19 +128,25 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
             let available_next_game_states_finder =
                 games::checkers::AvailableNextGameStatesFinder {};
 
-            let mut first_player_turn_taker = GameStateRecordWeightedMonteCarloTurnTaker::new(
+            let game_state_weights_calculator =
+                RecordValuesWeightedSumGameStateWeightsCalculator::new(
+                    &game_state_records_provider_ref_cell,
+                    &game_state_serializer,
+                    draws_weight,
+                    losses_weight,
+                    wins_weight,
+                    visits_deficit_weight,
+                );
+
+            let mut first_player_turn_taker = WeightedGameStatesMonteCarloTurnTaker::new(
                 &available_next_game_states_finder,
-                &game_state_records_provider_ref_cell,
-                &game_state_record_weights_calculator,
-                &game_state_serializer,
+                &game_state_weights_calculator,
                 0,
             );
 
-            let mut second_player_turn_taker = GameStateRecordWeightedMonteCarloTurnTaker::new(
+            let mut second_player_turn_taker = WeightedGameStatesMonteCarloTurnTaker::new(
                 &available_next_game_states_finder,
-                &game_state_records_provider_ref_cell,
-                &game_state_record_weights_calculator,
-                &game_state_serializer,
+                &game_state_weights_calculator,
                 1,
             );
 
@@ -204,19 +204,25 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
             let available_next_game_states_finder =
                 games::tic_tac_toe::AvailableNextGameStatesFinder {};
 
-            let mut first_player_turn_taker = GameStateRecordWeightedMonteCarloTurnTaker::new(
+            let game_state_weights_calculator =
+                RecordValuesWeightedSumGameStateWeightsCalculator::new(
+                    &game_state_records_provider_ref_cell,
+                    &game_state_serializer,
+                    draws_weight,
+                    losses_weight,
+                    wins_weight,
+                    visits_deficit_weight,
+                );
+
+            let mut first_player_turn_taker = WeightedGameStatesMonteCarloTurnTaker::new(
                 &available_next_game_states_finder,
-                &game_state_records_provider_ref_cell,
-                &game_state_record_weights_calculator,
-                &game_state_serializer,
+                &game_state_weights_calculator,
                 0,
             );
 
-            let mut second_player_turn_taker = GameStateRecordWeightedMonteCarloTurnTaker::new(
+            let mut second_player_turn_taker = WeightedGameStatesMonteCarloTurnTaker::new(
                 &available_next_game_states_finder,
-                &game_state_records_provider_ref_cell,
-                &game_state_record_weights_calculator,
-                &game_state_serializer,
+                &game_state_weights_calculator,
                 1,
             );
 

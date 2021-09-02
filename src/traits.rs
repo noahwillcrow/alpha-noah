@@ -72,10 +72,6 @@ pub trait GameStateRecordsProvider<SerializedGameState: BasicSerializedGameState
     );
 }
 
-pub trait GameStateRecordWeightsCalculator {
-    fn weigh_game_state_records(&self, game_state_records: &Vec<GameStateRecord>) -> Vec<f32>;
-}
-
 pub trait GameStateSerializer<
     GameState: BasicGameState,
     SerializedGameState: BasicSerializedGameState,
@@ -86,6 +82,14 @@ pub trait GameStateSerializer<
         responsible_player_index: i32,
         game_state: &GameState,
     ) -> SerializedGameState;
+}
+
+pub trait GameStateWeightsCalculator<GameState: BasicGameState> {
+    fn weigh_game_states(
+        &self,
+        responsible_player_index: i32,
+        game_states: &Vec<GameState>,
+    ) -> Vec<f32>;
 }
 
 pub trait PendingUpdatesManager {
