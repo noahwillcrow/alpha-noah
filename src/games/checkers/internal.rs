@@ -232,15 +232,15 @@ pub fn serialize_game_state(
     let mut serialized_game_state = vec![0 as u8];
 
     for i in 0..game_state.len() {
-        for j in 0..game_state.len() {
+        for j in 0..game_state[i].len() {
             let position_value = game_state[i][j];
             if position_value > 0 {
                 number_of_pieces += 1;
 
-                let mut piece_byte = (i * j) as u8;
+                let mut piece_byte = (i * game_state.len() + j) as u8;
 
                 match position_value {
-                    1 => (),
+                    1 => (), // first two bits stay 0, no point in doing an operation here
                     11 => piece_byte &= 0b01_00_00_00,
                     2 => piece_byte &= 0b10_00_00_00,
                     22 => piece_byte &= 0b11_00_00_00,
