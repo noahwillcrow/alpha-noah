@@ -4,7 +4,7 @@ use crate::game_state_records_providers::LruCacheFrontedGameStateRecordsProvider
 use crate::games;
 use crate::persistence::{SqliteByteArrayLogGameReportsPersister, SqliteGameStateRecordsDAL};
 use crate::training::StandardTrainer;
-use crate::turn_takers::WeightedGameStatesMonteCarloTurnTaker;
+use crate::turn_takers::WeightedRandomSelectionTurnTaker;
 use crate::weights_calculators::RecordValuesWeightedSumGameStateWeightsCalculator;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -138,13 +138,13 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
                     visits_deficit_weight,
                 );
 
-            let mut first_player_turn_taker = WeightedGameStatesMonteCarloTurnTaker::new(
+            let mut first_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
                 &available_next_game_states_finder,
                 &game_state_weights_calculator,
                 0,
             );
 
-            let mut second_player_turn_taker = WeightedGameStatesMonteCarloTurnTaker::new(
+            let mut second_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
                 &available_next_game_states_finder,
                 &game_state_weights_calculator,
                 1,
@@ -214,13 +214,13 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
                     visits_deficit_weight,
                 );
 
-            let mut first_player_turn_taker = WeightedGameStatesMonteCarloTurnTaker::new(
+            let mut first_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
                 &available_next_game_states_finder,
                 &game_state_weights_calculator,
                 0,
             );
 
-            let mut second_player_turn_taker = WeightedGameStatesMonteCarloTurnTaker::new(
+            let mut second_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
                 &available_next_game_states_finder,
                 &game_state_weights_calculator,
                 1,

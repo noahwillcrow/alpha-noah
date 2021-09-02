@@ -5,19 +5,19 @@ use crate::traits::{
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 
-pub struct WeightedGameStatesMonteCarloTurnTaker<'a, GameState: BasicGameState> {
+pub struct WeightedRandomSelectionTurnTaker<'a, GameState: BasicGameState> {
     available_next_game_states_finder: &'a dyn AvailableNextGameStatesFinder<GameState>,
     game_state_weights_calculator: &'a dyn GameStateWeightsCalculator<GameState>,
     player_index: i32,
 }
 
-impl<'a, GameState: BasicGameState> WeightedGameStatesMonteCarloTurnTaker<'a, GameState> {
+impl<'a, GameState: BasicGameState> WeightedRandomSelectionTurnTaker<'a, GameState> {
     pub fn new(
         available_next_game_states_finder: &'a dyn AvailableNextGameStatesFinder<GameState>,
         game_state_weights_calculator: &'a dyn GameStateWeightsCalculator<GameState>,
         player_index: i32,
-    ) -> WeightedGameStatesMonteCarloTurnTaker<'a, GameState> {
-        return WeightedGameStatesMonteCarloTurnTaker {
+    ) -> WeightedRandomSelectionTurnTaker<'a, GameState> {
+        return WeightedRandomSelectionTurnTaker {
             available_next_game_states_finder: available_next_game_states_finder,
             game_state_weights_calculator: game_state_weights_calculator,
             player_index: player_index,
@@ -26,7 +26,7 @@ impl<'a, GameState: BasicGameState> WeightedGameStatesMonteCarloTurnTaker<'a, Ga
 }
 
 impl<'a, GameState: BasicGameState> TurnTaker<GameState>
-    for WeightedGameStatesMonteCarloTurnTaker<'a, GameState>
+    for WeightedRandomSelectionTurnTaker<'a, GameState>
 {
     fn decide_next_game_state(
         &mut self,

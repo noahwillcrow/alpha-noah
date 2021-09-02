@@ -5,7 +5,7 @@ use crate::games;
 use crate::persistence::{SqliteByteArrayLogGameReportsPersister, SqliteGameStateRecordsDAL};
 use crate::training::StandardTrainer;
 use crate::traits::TurnTaker;
-use crate::turn_takers::{CLIInputPlayerTurnTaker, WeightedGameStatesMonteCarloTurnTaker};
+use crate::turn_takers::{CLIInputPlayerTurnTaker, WeightedRandomSelectionTurnTaker};
 use crate::weights_calculators::RecordValuesWeightedSumGameStateWeightsCalculator;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -127,7 +127,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 );
 
             let cpu_player_index = (cli_input_player_index + 1) % 2;
-            let mut cpu_player_turn_taker = WeightedGameStatesMonteCarloTurnTaker::new(
+            let mut cpu_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
                 &available_next_game_states_finder,
                 &game_state_weights_calculator,
                 cpu_player_index,
@@ -215,7 +215,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 );
 
             let cpu_player_index = (cli_input_player_index + 1) % 2;
-            let mut cpu_player_turn_taker = WeightedGameStatesMonteCarloTurnTaker::new(
+            let mut cpu_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
                 &available_next_game_states_finder,
                 &game_state_weights_calculator,
                 cpu_player_index,

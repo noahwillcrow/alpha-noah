@@ -1,5 +1,5 @@
 mod cli_input_player_turn_taker;
-mod weighted_game_states_monte_carlo_turn_taker;
+mod weighted_random_selection_turn_taker;
 
 pub use cli_input_player_turn_taker::CLIInputPlayerTurnTaker;
-pub use weighted_game_states_monte_carlo_turn_taker::WeightedGameStatesMonteCarloTurnTaker;
+pub use weighted_random_selection_turn_taker::WeightedRandomSelectionTurnTaker;
