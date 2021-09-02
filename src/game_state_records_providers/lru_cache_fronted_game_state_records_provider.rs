@@ -73,7 +73,7 @@ impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
         &mut self,
         serialized_game_state: &SerializedGameState,
     ) -> Option<GameStateRecord> {
-        let original_game_state_record_option: Option<GameStateRecord>;
+        let original_game_state_record: GameStateRecord;
 
         match self.lru_cache.get(serialized_game_state) {
             Some((original_game_state_record, pending_updates_game_state_record)) => {
@@ -91,32 +91,30 @@ impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
                 .borrow_mut()
                 .get_game_state_record(serialized_game_state)
             {
-                Some(game_state_record) => {
-                    original_game_state_record_option = Some(game_state_record.clone())
+                Some(dal_game_state_record) => {
+                    original_game_state_record = dal_game_state_record.clone()
                 }
-                None => original_game_state_record_option = None,
+                None => original_game_state_record = GameStateRecord::new_zeros(),
             },
         }
 
-        match original_game_state_record_option {
-            Some(original_game_state_record) => {
-                if self.lru_cache.len() >= self.max_capacity {
-                    self.try_commit_pending_updates_in_background(cmp::max(
-                        self.max_capacity / CAPACITY_CLEARANCE_DIVISOR,
-                        self.lru_cache.len() - (self.max_capacity - 1),
-                    ));
-                }
-                self.lru_cache.put(
-                    serialized_game_state.clone(),
-                    (
-                        original_game_state_record.clone(),
-                        GameStateRecord::new(0, 0, 0),
-                    ),
-                );
-                return Some(original_game_state_record);
-            }
-            None => return None,
+        // Must be a value that wasn't in the cache yet
+        if self.lru_cache.len() >= self.max_capacity {
+            self.try_commit_pending_updates_in_background(cmp::max(
+                self.max_capacity / CAPACITY_CLEARANCE_DIVISOR,
+                self.lru_cache.len() - (self.max_capacity - 1),
+            ));
         }
+
+        self.lru_cache.put(
+            serialized_game_state.clone(),
+            (
+                original_game_state_record.clone(),
+                GameStateRecord::new_zeros(),
+            ),
+        );
+
+        return Some(original_game_state_record);
     }
 
     fn update_game_state_record(
@@ -127,11 +125,14 @@ impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
     ) {
         let cached_record = self.lru_cache.get(serialized_game_state);
 
-        let new_cache_value: Option<(GameStateRecord, GameStateRecord)>;
+        let mut is_in_cache = false;
+        let new_cache_value: (GameStateRecord, GameStateRecord);
 
         match cached_record {
             Some((original_game_state_record, pending_updates_game_state_record)) => {
-                new_cache_value = Some((
+                is_in_cache = true;
+
+                new_cache_value = (
                     original_game_state_record.clone(),
                     GameStateRecord::new(
                         pending_updates_game_state_record.draws_count
@@ -140,7 +141,7 @@ impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
                             + if !did_draw && !did_win { 1 } else { 0 },
                         pending_updates_game_state_record.wins_count + if did_win { 1 } else { 0 },
                     ),
-                ));
+                );
             }
             None => match self
                 .game_state_records_dal_rc
@@ -148,32 +149,29 @@ impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
                 .get_game_state_record(&serialized_game_state)
             {
                 Some(game_state_record) => {
-                    new_cache_value = Some((
+                    new_cache_value = (
                         game_state_record.clone(),
                         GameStateRecord::new(
                             if did_draw { 1 } else { 0 },
                             if !did_draw && !did_win { 1 } else { 0 },
                             if did_win { 1 } else { 0 },
                         ),
-                    ));
+                    );
                 }
-                None => new_cache_value = None,
+                None => {
+                    new_cache_value = (GameStateRecord::new_zeros(), GameStateRecord::new_zeros())
+                }
             },
         }
 
-        match new_cache_value {
-            Some(cacheable_tuple) => {
-                if self.lru_cache.len() >= self.max_capacity {
-                    self.try_commit_pending_updates_in_background(cmp::max(
-                        self.max_capacity / CAPACITY_CLEARANCE_DIVISOR,
-                        self.lru_cache.len() - (self.max_capacity - 1),
-                    ));
-                }
+        if !is_in_cache && self.lru_cache.len() >= self.max_capacity {
+            self.try_commit_pending_updates_in_background(cmp::max(
+                self.max_capacity / CAPACITY_CLEARANCE_DIVISOR,
+                self.lru_cache.len() - (self.max_capacity - 1),
+            ));
+        }
 
-                self.lru_cache
-                    .put(serialized_game_state.clone(), cacheable_tuple);
-            }
-            None => (),
-        };
+        self.lru_cache
+            .put(serialized_game_state.clone(), new_cache_value);
     }
 }
