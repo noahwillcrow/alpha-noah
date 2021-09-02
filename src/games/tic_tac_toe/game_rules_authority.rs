@@ -1,5 +1,5 @@
 use crate::games::tic_tac_toe::GameStateType as TicTacToeGameState;
-use crate::traits::TerminalGameStateAnalyzer as TTerminalGameStateAnalyzer;
+use crate::traits::GameRulesAuthority as TGameRulesAuthority;
 
 type Position = (usize, usize);
 static WINNING_POSITION_SETS: &'static [(Position, Position, Position)] = &[
@@ -16,9 +16,9 @@ static WINNING_POSITION_SETS: &'static [(Position, Position, Position)] = &[
     ((0, 2), (1, 1), (2, 0)),
 ];
 
-pub struct TerminalGameStateAnalyzer {}
+pub struct GameRulesAuthority {}
 
-impl TTerminalGameStateAnalyzer<TicTacToeGameState> for TerminalGameStateAnalyzer {
+impl TGameRulesAuthority<TicTacToeGameState> for GameRulesAuthority {
     fn analyze_game_state_for_terminality(
         &self,
         game_state: &TicTacToeGameState,
@@ -53,5 +53,26 @@ impl TTerminalGameStateAnalyzer<TicTacToeGameState> for TerminalGameStateAnalyze
         }
 
         return None;
+    }
+
+    fn find_available_next_game_states(
+        &self,
+        current_player_index: i32,
+        current_game_state: &TicTacToeGameState,
+    ) -> Vec<TicTacToeGameState> {
+        let mut available_next_game_states: Vec<TicTacToeGameState> = vec![];
+
+        for i in 0..current_game_state.len() {
+            for j in 0..current_game_state.len() {
+                if current_game_state[i][j] == 0 {
+                    // the space is empty
+                    let mut available_next_game_state = current_game_state.clone();
+                    available_next_game_state[i][j] = current_player_index as u8 + 1;
+                    available_next_game_states.push(available_next_game_state);
+                }
+            }
+        }
+
+        return available_next_game_states;
     }
 }

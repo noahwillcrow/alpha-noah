@@ -106,13 +106,11 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
             );
             let game_reports_persister_ref_cell = RefCell::new(game_reports_persister);
 
+            let game_rules_authority = games::checkers::GameRulesAuthority {};
             let game_state_serializer = games::checkers::ByteArrayGameStateSerializer {};
-            let terminal_game_state_analyzer = games::checkers::TerminalGameStateAnalyzer {};
 
-            let mut base_game_runner = StandardTurnBasedGameRunner::new(
-                &game_state_serializer,
-                &terminal_game_state_analyzer,
-            );
+            let mut base_game_runner =
+                StandardTurnBasedGameRunner::new(&game_rules_authority, &game_state_serializer);
             let mut trainer = StandardTrainer::new(
                 &mut base_game_runner,
                 game_name,
@@ -125,9 +123,6 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
                 ],
             );
 
-            let available_next_game_states_finder =
-                games::checkers::AvailableNextGameStatesFinder {};
-
             let game_state_weights_calculator =
                 RecordValuesWeightedSumGameStateWeightsCalculator::new(
                     &game_state_records_provider_ref_cell,
@@ -139,13 +134,13 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
                 );
 
             let mut first_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
-                &available_next_game_states_finder,
+                &game_rules_authority,
                 &game_state_weights_calculator,
                 0,
             );
 
             let mut second_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
-                &available_next_game_states_finder,
+                &game_rules_authority,
                 &game_state_weights_calculator,
                 1,
             );
@@ -182,13 +177,11 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
             );
             let game_reports_persister_ref_cell = RefCell::new(game_reports_persister);
 
+            let game_rules_authority = games::tic_tac_toe::GameRulesAuthority {};
             let game_state_serializer = games::tic_tac_toe::ByteArrayGameStateSerializer {};
-            let terminal_game_state_analyzer = games::tic_tac_toe::TerminalGameStateAnalyzer {};
 
-            let mut base_game_runner = StandardTurnBasedGameRunner::new(
-                &game_state_serializer,
-                &terminal_game_state_analyzer,
-            );
+            let mut base_game_runner =
+                StandardTurnBasedGameRunner::new(&game_rules_authority, &game_state_serializer);
             let mut trainer = StandardTrainer::new(
                 &mut base_game_runner,
                 game_name,
@@ -201,9 +194,6 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
                 ],
             );
 
-            let available_next_game_states_finder =
-                games::tic_tac_toe::AvailableNextGameStatesFinder {};
-
             let game_state_weights_calculator =
                 RecordValuesWeightedSumGameStateWeightsCalculator::new(
                     &game_state_records_provider_ref_cell,
@@ -215,13 +205,13 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
                 );
 
             let mut first_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
-                &available_next_game_states_finder,
+                &game_rules_authority,
                 &game_state_weights_calculator,
                 0,
             );
 
             let mut second_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
-                &available_next_game_states_finder,
+                &game_rules_authority,
                 &game_state_weights_calculator,
                 1,
             );

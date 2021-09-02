@@ -1,8 +1,8 @@
 use crate::enums::RunGameError;
 use crate::structs::{GameReport, GameStateUpdate};
 use crate::traits::{
-    BasicGameState, BasicSerializedGameState, GameRunner, GameStateSerializer,
-    TerminalGameStateAnalyzer, TurnTaker,
+    BasicGameState, BasicSerializedGameState, GameRulesAuthority, GameRunner, GameStateSerializer,
+    TurnTaker,
 };
 
 pub struct StandardTurnBasedGameRunner<
@@ -10,20 +10,20 @@ pub struct StandardTurnBasedGameRunner<
     GameState: BasicGameState,
     SerializedGameState: BasicSerializedGameState,
 > {
+    game_rules_authority: &'a dyn GameRulesAuthority<GameState>,
     game_state_serializer: &'a dyn GameStateSerializer<GameState, SerializedGameState>,
-    terminal_game_state_analyzer: &'a dyn TerminalGameStateAnalyzer<GameState>,
 }
 
 impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameState>
     StandardTurnBasedGameRunner<'a, GameState, SerializedGameState>
 {
     pub fn new(
+        game_rules_authority: &'a dyn GameRulesAuthority<GameState>,
         game_state_serializer: &'a dyn GameStateSerializer<GameState, SerializedGameState>,
-        terminal_game_state_analyzer: &'a dyn TerminalGameStateAnalyzer<GameState>,
     ) -> StandardTurnBasedGameRunner<'a, GameState, SerializedGameState> {
         return StandardTurnBasedGameRunner {
+            game_rules_authority: game_rules_authority,
             game_state_serializer: game_state_serializer,
-            terminal_game_state_analyzer: terminal_game_state_analyzer,
         };
     }
 }
@@ -58,7 +58,7 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
 
             // Check if the current state is terminal given the next player index before starting their turn
             match self
-                .terminal_game_state_analyzer
+                .game_rules_authority
                 .analyze_game_state_for_terminality(&current_game_state, next_player_index)
             {
                 None => (),

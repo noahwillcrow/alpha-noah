@@ -2,14 +2,6 @@ use crate::enums::{DecideNextStateError, RunGameError};
 use crate::structs::{GameReport, GameStateRecord, IncrementPersistedGameStateRecordValuesTask};
 use std::hash::Hash;
 
-pub trait AvailableNextGameStatesFinder<GameState: BasicGameState> {
-    fn find_available_next_game_states(
-        &self,
-        current_player_index: i32,
-        current_game_state: &GameState,
-    ) -> Vec<GameState>;
-}
-
 pub trait BasicGameState: Clone {}
 
 pub trait BasicSerializedGameState: Clone + Eq + Hash + PartialEq {}
@@ -23,6 +15,24 @@ pub trait GameReportsPersister<SerializedGameState: BasicSerializedGameState, Er
         &mut self,
         game_report: GameReport<SerializedGameState>,
     ) -> Result<(), ErrorType>;
+}
+
+pub trait GameRulesAuthority<GameState: BasicGameState> {
+    /// Analayzes the given game state to determine if it is terminal.
+    /// If the given game state is terminal, then the function will return Some(i32),
+    /// with the nested integer being the winning player index.
+    /// Otherwise, it will return None.
+    fn analyze_game_state_for_terminality(
+        &self,
+        game_state: &GameState,
+        next_player_index: i32,
+    ) -> Option<i32>;
+
+    fn find_available_next_game_states(
+        &self,
+        current_player_index: i32,
+        current_game_state: &GameState,
+    ) -> Vec<GameState>;
 }
 
 pub trait GameRunner<GameState: BasicGameState, SerializedGameState: BasicSerializedGameState> {
@@ -97,19 +107,6 @@ pub trait PendingUpdatesManager {
         &mut self,
         max_number_to_commit: usize,
     ) -> std::thread::JoinHandle<()>;
-}
-
-/// A trait for structs that are capable of analyzing a game state for terminality and determining the winner for terminal game states
-pub trait TerminalGameStateAnalyzer<GameState: BasicGameState> {
-    /// Analayzes the given game state to determine if it is terminal.
-    /// If the given game state is terminal, then the function will return Some(i32),
-    /// with the nested integer being the winning player index.
-    /// Otherwise, it will return None.
-    fn analyze_game_state_for_terminality(
-        &self,
-        game_state: &GameState,
-        next_player_index: i32,
-    ) -> Option<i32>;
 }
 
 pub trait TurnTaker<GameState: BasicGameState> {
