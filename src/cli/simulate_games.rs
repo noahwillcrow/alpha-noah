@@ -94,7 +94,7 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), rusqlite::Error> {
             let game_name = "checkers";
             let logs_serializer_version = 1;
 
-            let lru_cache_max_capacity: usize = 10_000_000;
+            let lru_cache_max_capacity: usize = 100_000;
             let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)?;
             let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
             let game_state_records_provider = LruCacheFrontedGameStateRecordsProvider::new(
@@ -150,7 +150,7 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), rusqlite::Error> {
             let game_name = "tic-tac-toe";
             let logs_serializer_version = 1;
 
-            let lru_cache_max_capacity: usize = 10_000_000;
+            let lru_cache_max_capacity: usize = 100_000;
             let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)?;
             let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
             let game_state_records_provider = LruCacheFrontedGameStateRecordsProvider::new(
