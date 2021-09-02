@@ -108,91 +108,87 @@ pub fn fill_vector_with_available_capture_move_states_for_piece(
 
     let mut visited_options: HashSet<(Vec<u8>, (usize, usize), (i8, i8))> = HashSet::new();
 
-    loop {
-        match capture_possibilities_stack.pop() {
-            Some((start_game_state, move_from_coor, capture_dir)) => {
-                let serialized_start_game_state =
-                    serialize_game_state(current_player_index, &start_game_state);
-                let visited_options_key = (
-                    serialized_start_game_state.clone(),
-                    move_from_coor,
-                    capture_dir,
-                );
-                if visited_options.contains(&visited_options_key) {
-                    // already visited this state and explored it
-                    continue;
-                }
-                visited_options.insert(visited_options_key);
+    while let Some((start_game_state, move_from_coor, capture_dir)) =
+        capture_possibilities_stack.pop()
+    {
+        let serialized_start_game_state =
+            serialize_game_state(current_player_index, &start_game_state);
+        let visited_options_key = (
+            serialized_start_game_state.clone(),
+            move_from_coor,
+            capture_dir,
+        );
+        if visited_options.contains(&visited_options_key) {
+            // already visited this state and explored it
+            continue;
+        }
+        visited_options.insert(visited_options_key);
 
-                if !is_valid_board_coordinate(
-                    move_from_coor.0 as i8 + (capture_dir.0 * 2),
-                    move_from_coor.1 as i8 + (capture_dir.1 * 2),
-                ) {
-                    // not a valid jump as it would go out of bounds
-                    continue;
-                }
+        if !is_valid_board_coordinate(
+            move_from_coor.0 as i8 + (capture_dir.0 * 2),
+            move_from_coor.1 as i8 + (capture_dir.1 * 2),
+        ) {
+            // not a valid jump as it would go out of bounds
+            continue;
+        }
 
-                let captured_piece_coor = (
-                    (move_from_coor.0 as i8 + capture_dir.0) as usize,
-                    (move_from_coor.1 as i8 + capture_dir.1) as usize,
-                );
-                let captured_piece_space_value =
-                    current_game_state[captured_piece_coor.0][captured_piece_coor.1];
-                if captured_piece_space_value == 0
-                    || captured_piece_space_value == single_piece_value
-                    || captured_piece_space_value == double_piece_value
-                {
-                    // not a valid jump as you jump over your own pieces or empty spaces
-                    continue;
-                }
+        let captured_piece_coor = (
+            (move_from_coor.0 as i8 + capture_dir.0) as usize,
+            (move_from_coor.1 as i8 + capture_dir.1) as usize,
+        );
+        let captured_piece_space_value =
+            current_game_state[captured_piece_coor.0][captured_piece_coor.1];
+        if captured_piece_space_value == 0
+            || captured_piece_space_value == single_piece_value
+            || captured_piece_space_value == double_piece_value
+        {
+            // not a valid jump as you jump over your own pieces or empty spaces
+            continue;
+        }
 
-                let capture_move_space_coor = (
-                    (move_from_coor.0 as i8 + (capture_dir.0 * 2)) as usize,
-                    (move_from_coor.1 as i8 + (capture_dir.1 * 2)) as usize,
-                );
-                let capture_move_space_value =
-                    start_game_state[capture_move_space_coor.0][capture_move_space_coor.1];
-                if capture_move_space_value > 0 {
-                    // not a valid jump as the space two ahead is not empty
-                    continue;
-                }
+        let capture_move_space_coor = (
+            (move_from_coor.0 as i8 + (capture_dir.0 * 2)) as usize,
+            (move_from_coor.1 as i8 + (capture_dir.1 * 2)) as usize,
+        );
+        let capture_move_space_value =
+            start_game_state[capture_move_space_coor.0][capture_move_space_coor.1];
+        if capture_move_space_value > 0 {
+            // not a valid jump as the space two ahead is not empty
+            continue;
+        }
 
-                // a capture is possible!
-                let mut capture_move_state = start_game_state.clone();
-                capture_move_state[move_from_coor.0][move_from_coor.1] = 0;
-                capture_move_state[captured_piece_coor.0][captured_piece_coor.1] = 0;
+        // a capture is possible!
+        let mut capture_move_state = start_game_state.clone();
+        capture_move_state[move_from_coor.0][move_from_coor.1] = 0;
+        capture_move_state[captured_piece_coor.0][captured_piece_coor.1] = 0;
 
-                let start_game_state_space_value =
-                    start_game_state[move_from_coor.0][move_from_coor.1];
-                if start_game_state_space_value == single_piece_value
-                    && capture_move_space_coor.0 == double_row
-                {
-                    // doublin' that piece!
-                    capture_move_state[capture_move_space_coor.0][capture_move_space_coor.1] =
-                        double_piece_value;
-                    // when doubling a piece, the turn ends there - no further jumps allowed
-                } else {
-                    capture_move_state[capture_move_space_coor.0 as usize]
-                        [capture_move_space_coor.1 as usize] = start_game_state_space_value;
+        let start_game_state_space_value = start_game_state[move_from_coor.0][move_from_coor.1];
+        if start_game_state_space_value == single_piece_value
+            && capture_move_space_coor.0 == double_row
+        {
+            // doublin' that piece!
+            capture_move_state[capture_move_space_coor.0][capture_move_space_coor.1] =
+                double_piece_value;
+            // when doubling a piece, the turn ends there - no further jumps allowed
+        } else {
+            capture_move_state[capture_move_space_coor.0 as usize]
+                [capture_move_space_coor.1 as usize] = start_game_state_space_value;
 
-                    // now let's explore for multi-jump possibilities by pushing them onto the stack
-                    for next_jump_direction in available_directions {
-                        capture_possibilities_stack.push((
-                            capture_move_state.clone(),
-                            capture_move_space_coor,
-                            (next_jump_direction.0, next_jump_direction.1),
-                        ));
-                    }
-                }
-
-                available_capture_move_states.push(capture_move_state);
-
-                if available_capture_move_states.len() == max_number_of_moves_to_find as usize {
-                    // we have found the max number of turns we want so let's just end here
-                    return;
-                }
+            // now let's explore for multi-jump possibilities by pushing them onto the stack
+            for next_jump_direction in available_directions {
+                capture_possibilities_stack.push((
+                    capture_move_state.clone(),
+                    capture_move_space_coor,
+                    (next_jump_direction.0, next_jump_direction.1),
+                ));
             }
-            None => break,
+        }
+
+        available_capture_move_states.push(capture_move_state);
+
+        if available_capture_move_states.len() == max_number_of_moves_to_find as usize {
+            // we have found the max number of turns we want so let's just end here
+            return;
         }
     }
 }

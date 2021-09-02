@@ -36,7 +36,7 @@ impl<'a, GameState: BasicGameState> TurnTaker<GameState>
                 .format_game_state_for_cli(&current_game_state)
         );
 
-        'user_input_loop: loop {
+        loop {
             print!("Please enter your desired move: ");
             std::io::stdout().flush().unwrap();
             let mut user_input_string = String::new();
@@ -44,7 +44,7 @@ impl<'a, GameState: BasicGameState> TurnTaker<GameState>
                 Ok(_) => (),
                 Err(_) => {
                     println!("Failed to read user input.");
-                    continue 'user_input_loop;
+                    continue;
                 }
             }
 
@@ -62,7 +62,7 @@ impl<'a, GameState: BasicGameState> TurnTaker<GameState>
                 }
                 Err(error_message) => {
                     println!("{}", error_message);
-                    continue 'user_input_loop;
+                    continue;
                 }
             }
         }

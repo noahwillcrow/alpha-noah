@@ -47,18 +47,11 @@ impl PendingUpdatesManager for SqliteByteArrayLogGameReportsPersister {
         max_number_to_commit: usize,
     ) -> std::thread::JoinHandle<()> {
         let mut game_reports_to_commit: Vec<GameReport<Vec<u8>>> = vec![];
-        loop {
-            match self.pending_game_reports.pop() {
-                Some(game_report) => {
-                    game_reports_to_commit.push(game_report);
+        while let Some(game_report) = self.pending_game_reports.pop() {
+            game_reports_to_commit.push(game_report);
 
-                    if game_reports_to_commit.len() == max_number_to_commit {
-                        break;
-                    }
-                }
-                None => {
-                    break;
-                }
+            if game_reports_to_commit.len() == max_number_to_commit {
+                break;
             }
         }
 
@@ -89,12 +82,12 @@ impl PendingUpdatesManager for SqliteByteArrayLogGameReportsPersister {
                 }
             }
 
-            for game_report in game_reports_to_commit.iter() {
+            while let Some(mut game_report) = game_reports_to_commit.pop() {
                 let mut attempts_counter: u8 = 0;
 
                 let mut log_entry: Vec<u8> = vec![];
-                for game_state_update in &game_report.game_state_updates {
-                    log_entry.append(&mut game_state_update.new_serialized_game_state.clone());
+                while let Some(mut game_state_update) = game_report.game_state_updates.pop() {
+                    log_entry.append(&mut game_state_update.new_serialized_game_state);
                 }
 
                 'attempts_loop: while attempts_counter < MAX_ATTEMPTS_PER_GAME_REPORT {
