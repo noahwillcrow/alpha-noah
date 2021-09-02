@@ -18,6 +18,13 @@ pub trait CLIGameStateFormatter<GameState: BasicGameState> {
     fn format_game_state_for_cli(&self, game_state: &GameState) -> String;
 }
 
+pub trait GameReportsPersister<SerializedGameState: BasicSerializedGameState, ErrorType> {
+    fn persist_game_report(
+        &mut self,
+        game_report: GameReport<SerializedGameState>,
+    ) -> Result<(), ErrorType>;
+}
+
 pub trait GameRunner<GameState: BasicGameState, SerializedGameState: BasicSerializedGameState> {
     fn run_game(
         &mut self,

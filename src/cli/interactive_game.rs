@@ -2,15 +2,15 @@ use crate::cli::enums::Game;
 use crate::game_runners::StandardTurnBasedGameRunner;
 use crate::game_state_records_providers::LruCacheFrontedGameStateRecordsProvider;
 use crate::games;
-use crate::persistence::SqliteGameStateRecordsDAL;
-use crate::training::SqliteByteArraySerializedGameStatesTrainer;
+use crate::persistence::{SqliteByteArrayLogGameReportsPersister, SqliteGameStateRecordsDAL};
+use crate::training::StandardTrainer;
 use crate::traits::TurnTaker;
 use crate::turn_takers::{CLIInputPlayerTurnTaker, GameStateRecordWeightedMonteCarloTurnTaker};
 use crate::weights_calculators::WeightedSumGameStateRecordWeightsCalculator;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
+pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
     let mut game = Game::TicTacToe;
     let mut cli_input_player_index = 0;
     let mut draws_weight = 5.0;
@@ -83,13 +83,22 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
             let logs_serializer_version = 1;
 
             let lru_cache_max_capacity: usize = 10_000_000;
-            let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)?;
+            let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)
+                .expect("Failed to create SqliteGameStateRecordsDAL.");
             let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
             let game_state_records_provider = LruCacheFrontedGameStateRecordsProvider::new(
                 lru_cache_max_capacity,
                 Rc::clone(&game_state_records_dal_rc),
             );
             let game_state_records_provider_ref_cell = RefCell::new(game_state_records_provider);
+
+            let game_reports_persister = SqliteByteArrayLogGameReportsPersister::new(
+                game_name,
+                logs_serializer_version,
+                100_000,
+                sqlite_db_path,
+            );
+            let game_reports_persister_ref_cell = RefCell::new(game_reports_persister);
 
             let game_state_serializer = games::checkers::ByteArrayGameStateSerializer {};
             let terminal_game_state_analyzer = games::checkers::TerminalGameStateAnalyzer {};
@@ -98,13 +107,16 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
                 &game_state_serializer,
                 &terminal_game_state_analyzer,
             );
-            let mut trainer = SqliteByteArraySerializedGameStatesTrainer::new(
+            let mut trainer = StandardTrainer::new(
                 &mut base_game_runner,
                 game_name,
-                logs_serializer_version,
+                &game_reports_persister_ref_cell,
                 &game_state_records_provider_ref_cell,
-                sqlite_db_path,
-                &game_state_records_provider_ref_cell,
+                false,
+                vec![
+                    &game_reports_persister_ref_cell,
+                    &game_state_records_provider_ref_cell,
+                ],
             );
 
             let available_next_game_states_finder =
@@ -136,26 +148,37 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
                 &mut cli_input_player_turn_taker,
             );
 
-            trainer.train(
-                1,
-                games::checkers::create_initial_game_state,
-                &mut turn_takers,
-                -1,
-                true,
-            )?;
+            trainer
+                .train(
+                    1,
+                    games::checkers::create_initial_game_state,
+                    &mut turn_takers,
+                    -1,
+                    true,
+                )
+                .expect("Training failed.");
         }
         Game::TicTacToe => {
             let game_name = "tic-tac-toe";
             let logs_serializer_version = 1;
 
             let lru_cache_max_capacity: usize = 10_000_000;
-            let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)?;
+            let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)
+                .expect("Failed to create SqliteGameStateRecordsDAL.");
             let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
             let game_state_records_provider = LruCacheFrontedGameStateRecordsProvider::new(
                 lru_cache_max_capacity,
                 Rc::clone(&game_state_records_dal_rc),
             );
             let game_state_records_provider_ref_cell = RefCell::new(game_state_records_provider);
+
+            let game_reports_persister = SqliteByteArrayLogGameReportsPersister::new(
+                game_name,
+                logs_serializer_version,
+                100_000,
+                sqlite_db_path,
+            );
+            let game_reports_persister_ref_cell = RefCell::new(game_reports_persister);
 
             let game_state_serializer = games::tic_tac_toe::ByteArrayGameStateSerializer {};
             let terminal_game_state_analyzer = games::tic_tac_toe::TerminalGameStateAnalyzer {};
@@ -164,13 +187,16 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
                 &game_state_serializer,
                 &terminal_game_state_analyzer,
             );
-            let mut trainer = SqliteByteArraySerializedGameStatesTrainer::new(
+            let mut trainer = StandardTrainer::new(
                 &mut base_game_runner,
                 game_name,
-                logs_serializer_version,
+                &game_reports_persister_ref_cell,
                 &game_state_records_provider_ref_cell,
-                sqlite_db_path,
-                &game_state_records_provider_ref_cell,
+                false,
+                vec![
+                    &game_reports_persister_ref_cell,
+                    &game_state_records_provider_ref_cell,
+                ],
             );
 
             let available_next_game_states_finder =
@@ -202,13 +228,15 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), rusqlite::Error> {
                 &mut cli_input_player_turn_taker,
             );
 
-            trainer.train(
-                1,
-                games::tic_tac_toe::create_initial_game_state,
-                &mut turn_takers,
-                -1,
-                true,
-            )?;
+            trainer
+                .train(
+                    1,
+                    games::tic_tac_toe::create_initial_game_state,
+                    &mut turn_takers,
+                    -1,
+                    true,
+                )
+                .expect("Training failed.");
         }
     }
 

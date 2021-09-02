@@ -14,7 +14,7 @@ mod traits;
 mod turn_takers;
 mod weights_calculators;
 
-fn main() -> Result<(), rusqlite::Error> {
+fn main() -> Result<(), ()> {
     let mut command = cli::enums::Command::SimulateGames;
     let mut args = vec![];
 

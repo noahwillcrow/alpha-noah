@@ -1,3 +1,5 @@
 mod sqlite_game_state_records_dal;
-
 pub use sqlite_game_state_records_dal::SqliteGameStateRecordsDAL;
+
+mod sqlite_byte_array_log_game_reports_persister;
+pub use sqlite_byte_array_log_game_reports_persister::SqliteByteArrayLogGameReportsPersister;
