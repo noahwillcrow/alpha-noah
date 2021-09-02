@@ -82,7 +82,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             let game_name = "checkers";
             let logs_serializer_version = 1;
 
-            let lru_cache_max_capacity: usize = 10_000_000;
+            let lru_cache_max_capacity: usize = 100_000;
             let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)
                 .expect("Failed to create SqliteGameStateRecordsDAL.");
             let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
@@ -95,7 +95,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             let game_reports_persister = SqliteByteArrayLogGameReportsPersister::new(
                 game_name,
                 logs_serializer_version,
-                100_000,
+                1,
                 sqlite_db_path,
             );
             let game_reports_persister_ref_cell = RefCell::new(game_reports_persister);
@@ -162,7 +162,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             let game_name = "tic-tac-toe";
             let logs_serializer_version = 1;
 
-            let lru_cache_max_capacity: usize = 10_000_000;
+            let lru_cache_max_capacity: usize = 100_000;
             let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)
                 .expect("Failed to create SqliteGameStateRecordsDAL.");
             let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
@@ -175,7 +175,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             let game_reports_persister = SqliteByteArrayLogGameReportsPersister::new(
                 game_name,
                 logs_serializer_version,
-                100_000,
+                1,
                 sqlite_db_path,
             );
             let game_reports_persister_ref_cell = RefCell::new(game_reports_persister);
