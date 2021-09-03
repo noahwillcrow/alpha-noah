@@ -4,7 +4,7 @@ use crate::game_state_records_providers::LruCacheFrontedGameStateRecordsProvider
 use crate::games;
 use crate::persistence::{SqliteByteArrayLogGameReportsPersister, SqliteGameStateRecordsDAL};
 use crate::training::StandardTrainer;
-use crate::turn_takers::WeightedRandomSelectionTurnTaker;
+use crate::turn_takers::{BestWeightSelectionTurnTaker, WeightedRandomSelectionTurnTaker};
 use crate::weights_calculators::RecordValuesWeightedSumGameStateWeightsCalculator;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -210,7 +210,7 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
                 0,
             );
 
-            let mut second_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
+            let mut second_player_turn_taker = BestWeightSelectionTurnTaker::new(
                 &game_rules_authority,
                 &game_state_weights_calculator,
                 1,

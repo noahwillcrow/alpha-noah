@@ -1,5 +1,8 @@
-mod cli_input_player_turn_taker;
-mod weighted_random_selection_turn_taker;
+mod best_weight_selection_turn_taker;
+pub use best_weight_selection_turn_taker::BestWeightSelectionTurnTaker;
 
+mod cli_input_player_turn_taker;
 pub use cli_input_player_turn_taker::CLIInputPlayerTurnTaker;
+
+mod weighted_random_selection_turn_taker;
 pub use weighted_random_selection_turn_taker::WeightedRandomSelectionTurnTaker;

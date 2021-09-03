@@ -6,7 +6,7 @@ use crate::traits::GameStateSerializer;
 /// So, in order to represent all states, at least ceil(log_2(10^20)) bits are necessary, which comes out to 67 bits.
 /// This implementation is far less space-efficient as it will take up to 5 + (24*8) = 197 bits to store information,
 /// which then is rounded up to the nearest byte for a total of 200 bits.
-/// The length of the hash is proportional to the number of pieces on the board, so the average hash length is a complex thing to calculate.
+/// The length of the hash is roughly proportional to the number of pieces on the board, so the average hash length is a complex thing to calculate.
 /// Assuming the inaccurate number of 25 bytes per state, it would take rougly 2.5e12 GB to store every single hash possible to represent all 10^20 states.
 /// This implementation assumes that that's not a feasible number of states to actually explore in one iteration of the program.
 /// So exactly how does the hashing work here?
