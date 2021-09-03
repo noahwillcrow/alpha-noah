@@ -8,8 +8,6 @@ use crate::training::StandardTrainer;
 use crate::traits::GameReportsProcessor;
 use crate::turn_takers::{BestWeightSelectionTurnTaker, WeightedRandomSelectionTurnTaker};
 use crate::weights_calculators::RecordValuesWeightedSumGameStateWeightsCalculator;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub fn simulate_games<'a>(args: Vec<String>) -> Result<(), ()> {
     let mut game = Game::TicTacToe;
@@ -93,10 +91,9 @@ pub fn simulate_games<'a>(args: Vec<String>) -> Result<(), ()> {
             let lru_cache_max_capacity: usize = 1_000_000;
             let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)
                 .expect("Failed to create SqliteGameStateRecordsDAL.");
-            let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
             let game_state_records_provider = LruCacheFrontedGameStateRecordsProvider::new(
                 lru_cache_max_capacity,
-                Rc::clone(&game_state_records_dal_rc),
+                &game_state_records_dal,
             );
 
             let sqlite_game_reports_processor = SqliteByteArrayLogGameReportsProcessor::new(
@@ -162,10 +159,9 @@ pub fn simulate_games<'a>(args: Vec<String>) -> Result<(), ()> {
             let lru_cache_max_capacity: usize = 1_000_000;
             let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)
                 .expect("Failed to create SqliteGameStateRecordsDAL.");
-            let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
             let game_state_records_provider = LruCacheFrontedGameStateRecordsProvider::new(
                 lru_cache_max_capacity,
-                Rc::clone(&game_state_records_dal_rc),
+                &game_state_records_dal,
             );
 
             let sqlite_game_reports_processor = SqliteByteArrayLogGameReportsProcessor::new(

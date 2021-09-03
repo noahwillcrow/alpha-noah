@@ -9,34 +9,36 @@ use lru::LruCache;
 use std::cell::RefCell;
 use std::cmp;
 use std::collections::HashSet;
-use std::rc::Rc;
 use std::thread;
 
 const CAPACITY_CLEARANCE_DIVISOR: usize = 5;
 
-pub struct LruCacheFrontedGameStateRecordsProvider<SerializedGameState: BasicSerializedGameState> {
+pub struct LruCacheFrontedGameStateRecordsProvider<
+    'a,
+    SerializedGameState: BasicSerializedGameState,
+> {
     lru_cache_ref_cell: RefCell<LruCache<SerializedGameState, (GameStateRecord, GameStateRecord)>>,
     max_capacity: usize,
-    game_state_records_dal_rc: Rc<RefCell<dyn GameStateRecordsDAL<SerializedGameState>>>,
+    game_state_records_dal: &'a dyn GameStateRecordsDAL<SerializedGameState>,
 }
 
-impl<SerializedGameState: BasicSerializedGameState>
-    LruCacheFrontedGameStateRecordsProvider<SerializedGameState>
+impl<'a, SerializedGameState: BasicSerializedGameState>
+    LruCacheFrontedGameStateRecordsProvider<'a, SerializedGameState>
 {
-    pub fn new<DalType: GameStateRecordsDAL<SerializedGameState> + 'static>(
+    pub fn new(
         max_capacity: usize,
-        game_state_records_dal_rc: Rc<RefCell<DalType>>,
-    ) -> LruCacheFrontedGameStateRecordsProvider<SerializedGameState> {
+        game_state_records_dal: &'a dyn GameStateRecordsDAL<SerializedGameState>,
+    ) -> LruCacheFrontedGameStateRecordsProvider<'a, SerializedGameState> {
         return LruCacheFrontedGameStateRecordsProvider {
             lru_cache_ref_cell: RefCell::new(LruCache::unbounded()),
             max_capacity: max_capacity,
-            game_state_records_dal_rc: game_state_records_dal_rc,
+            game_state_records_dal: game_state_records_dal,
         };
     }
 }
 
-impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync> PendingUpdatesManager
-    for LruCacheFrontedGameStateRecordsProvider<SerializedGameState>
+impl<'a, SerializedGameState: BasicSerializedGameState + Send + Send + Sync> PendingUpdatesManager
+    for LruCacheFrontedGameStateRecordsProvider<'a, SerializedGameState>
 {
     fn try_commit_pending_updates_in_background(
         &self,
@@ -63,15 +65,14 @@ impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync> Pending
         }
 
         return self
-            .game_state_records_dal_rc
-            .borrow_mut()
+            .game_state_records_dal
             .increment_game_state_records_values_in_background(increment_tasks);
     }
 }
 
-impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
+impl<'a, SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
     GameStateRecordsFetcher<SerializedGameState>
-    for LruCacheFrontedGameStateRecordsProvider<SerializedGameState>
+    for LruCacheFrontedGameStateRecordsProvider<'a, SerializedGameState>
 {
     fn get_game_state_record(
         &self,
@@ -95,8 +96,7 @@ impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
                 ))
             }
             None => match self
-                .game_state_records_dal_rc
-                .borrow_mut()
+                .game_state_records_dal
                 .get_game_state_record(serialized_game_state)
             {
                 Some(dal_game_state_record) => {
@@ -126,9 +126,9 @@ impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
     }
 }
 
-impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
+impl<'a, SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
     GameReportsProcessor<SerializedGameState, ()>
-    for LruCacheFrontedGameStateRecordsProvider<SerializedGameState>
+    for LruCacheFrontedGameStateRecordsProvider<'a, SerializedGameState>
 {
     fn process_game_report(&self, game_report: GameReport<SerializedGameState>) -> Result<(), ()> {
         let did_draw = game_report.winning_player_index == -1;
@@ -166,8 +166,7 @@ impl<SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
                     );
                 }
                 None => match self
-                    .game_state_records_dal_rc
-                    .borrow_mut()
+                    .game_state_records_dal
                     .get_game_state_record(&game_state_update.new_serialized_game_state)
                 {
                     Some(game_state_record) => {
