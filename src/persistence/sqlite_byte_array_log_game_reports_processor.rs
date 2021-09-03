@@ -1,39 +1,42 @@
 use crate::structs::GameReport;
-use crate::traits::{GameReportsPersister, PendingUpdatesManager};
+use crate::traits::{GameReportsProcessor, PendingUpdatesManager};
 use rusqlite::{Connection, Transaction};
+use std::cell::RefCell;
 use std::thread;
 
 const MAX_ATTEMPTS_PER_GAME_REPORT: u8 = 3;
 
-pub struct SqliteByteArrayLogGameReportsPersister {
+pub struct SqliteByteArrayLogGameReportsProcessor {
     game_name: String,
     log_serializer_version: i32,
     max_batch_size: usize,
-    pending_game_reports: Vec<GameReport<Vec<u8>>>,
+    pending_game_reports_ref_cell: RefCell<Vec<GameReport<Vec<u8>>>>,
     sqlite_db_path: String,
 }
 
-impl SqliteByteArrayLogGameReportsPersister {
+impl SqliteByteArrayLogGameReportsProcessor {
     pub fn new(
         game_name: &str,
         log_serializer_version: i32,
         max_batch_size: usize,
         sqlite_db_path: &str,
-    ) -> SqliteByteArrayLogGameReportsPersister {
-        return SqliteByteArrayLogGameReportsPersister {
+    ) -> SqliteByteArrayLogGameReportsProcessor {
+        return SqliteByteArrayLogGameReportsProcessor {
             game_name: String::from(game_name),
             log_serializer_version: log_serializer_version,
             max_batch_size: max_batch_size,
-            pending_game_reports: vec![],
+            pending_game_reports_ref_cell: RefCell::new(vec![]),
             sqlite_db_path: String::from(sqlite_db_path),
         };
     }
 }
 
-impl GameReportsPersister<Vec<u8>, ()> for SqliteByteArrayLogGameReportsPersister {
-    fn persist_game_report(&mut self, game_report: GameReport<Vec<u8>>) -> Result<(), ()> {
-        self.pending_game_reports.push(game_report);
-        if self.pending_game_reports.len() >= self.max_batch_size {
+impl GameReportsProcessor<Vec<u8>, ()> for SqliteByteArrayLogGameReportsProcessor {
+    fn process_game_report(&self, game_report: GameReport<Vec<u8>>) -> Result<(), ()> {
+        self.pending_game_reports_ref_cell
+            .borrow_mut()
+            .push(game_report);
+        if self.pending_game_reports_ref_cell.borrow().len() >= self.max_batch_size {
             self.try_commit_pending_updates_in_background(self.max_batch_size as usize);
         }
 
@@ -41,13 +44,13 @@ impl GameReportsPersister<Vec<u8>, ()> for SqliteByteArrayLogGameReportsPersiste
     }
 }
 
-impl PendingUpdatesManager for SqliteByteArrayLogGameReportsPersister {
+impl PendingUpdatesManager for SqliteByteArrayLogGameReportsProcessor {
     fn try_commit_pending_updates_in_background(
-        &mut self,
+        &self,
         max_number_to_commit: usize,
     ) -> std::thread::JoinHandle<()> {
         let mut game_reports_to_commit: Vec<GameReport<Vec<u8>>> = vec![];
-        while let Some(game_report) = self.pending_game_reports.pop() {
+        while let Some(game_report) = self.pending_game_reports_ref_cell.borrow_mut().pop() {
             game_reports_to_commit.push(game_report);
 
             if game_reports_to_commit.len() == max_number_to_commit {

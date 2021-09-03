@@ -5,14 +5,14 @@ use std::io::Write;
 pub struct CLIInputPlayerTurnTaker<'a, GameState: BasicGameState> {
     cli_game_state_formatter: &'a dyn CLIGameStateFormatter<GameState>,
     player_index: i32,
-    user_input_game_state_creator: &'a mut dyn UserInputGameStateCreator<GameState, String>,
+    user_input_game_state_creator: &'a dyn UserInputGameStateCreator<GameState, String>,
 }
 
 impl<'a, GameState: BasicGameState> CLIInputPlayerTurnTaker<'a, GameState> {
     pub fn new(
         cli_game_state_formatter: &'a dyn CLIGameStateFormatter<GameState>,
         player_index: i32,
-        user_input_game_state_creator: &'a mut dyn UserInputGameStateCreator<GameState, String>,
+        user_input_game_state_creator: &'a dyn UserInputGameStateCreator<GameState, String>,
     ) -> CLIInputPlayerTurnTaker<'a, GameState> {
         return CLIInputPlayerTurnTaker {
             cli_game_state_formatter: cli_game_state_formatter,
@@ -26,7 +26,7 @@ impl<'a, GameState: BasicGameState> TurnTaker<GameState>
     for CLIInputPlayerTurnTaker<'a, GameState>
 {
     fn decide_next_game_state(
-        &mut self,
+        &self,
         current_game_state: &GameState,
     ) -> Result<GameState, DecideNextStateError> {
         println!("Player {}, it's your turn!", self.player_index + 1);

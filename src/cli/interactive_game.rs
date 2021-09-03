@@ -1,10 +1,11 @@
 use crate::cli::enums::Game;
+use crate::composites::GameReportsIterativeProcessor;
 use crate::game_runners::StandardTurnBasedGameRunner;
 use crate::game_state_records_providers::LruCacheFrontedGameStateRecordsProvider;
 use crate::games;
-use crate::persistence::{SqliteByteArrayLogGameReportsPersister, SqliteGameStateRecordsDAL};
+use crate::persistence::{SqliteByteArrayLogGameReportsProcessor, SqliteGameStateRecordsDAL};
 use crate::training::StandardTrainer;
-use crate::traits::TurnTaker;
+use crate::traits::{GameReportsProcessor, TurnTaker};
 use crate::turn_takers::{
     BestWeightSelectionTurnTaker, CLIInputPlayerTurnTaker, WeightedRandomSelectionTurnTaker,
 };
@@ -78,7 +79,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             let game_name = "checkers";
             let logs_serializer_version = 1;
 
-            let lru_cache_max_capacity: usize = 100_000;
+            let lru_cache_max_capacity: usize = 1_000_000;
             let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)
                 .expect("Failed to create SqliteGameStateRecordsDAL.");
             let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
@@ -86,15 +87,17 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 lru_cache_max_capacity,
                 Rc::clone(&game_state_records_dal_rc),
             );
-            let game_state_records_provider_ref_cell = RefCell::new(game_state_records_provider);
 
-            let game_reports_persister = SqliteByteArrayLogGameReportsPersister::new(
+            let sqlite_game_reports_processor = SqliteByteArrayLogGameReportsProcessor::new(
                 game_name,
                 logs_serializer_version,
-                1,
+                10_000,
                 sqlite_db_path,
             );
-            let game_reports_persister_ref_cell = RefCell::new(game_reports_persister);
+            let game_reports_processors_vector: Vec<&dyn GameReportsProcessor<Vec<u8>, ()>> =
+                vec![&game_state_records_provider, &sqlite_game_reports_processor];
+            let game_reports_processor =
+                GameReportsIterativeProcessor::new(game_reports_processors_vector);
 
             let game_rules_authority = games::checkers::GameRulesAuthority {};
             let game_state_serializer = games::checkers::ByteArrayGameStateSerializer {};
@@ -104,18 +107,17 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             let mut trainer = StandardTrainer::new(
                 &mut base_game_runner,
                 game_name,
-                &game_reports_persister_ref_cell,
-                &game_state_records_provider_ref_cell,
-                false,
-                vec![
-                    &game_reports_persister_ref_cell,
-                    &game_state_records_provider_ref_cell,
-                ],
+                &game_reports_processor,
+                true,
+                vec![&game_state_records_provider],
             );
 
+            // let game_state_weights_calculator = CnnGameStateWeightsCalculator::new(
+            //     &games::checkers::transform_game_state_to_tensor,
+            // );
             let game_state_weights_calculator =
                 RecordValuesWeightedSumGameStateWeightsCalculator::new(
-                    &game_state_records_provider_ref_cell,
+                    &game_state_records_provider,
                     &game_state_serializer,
                     draws_weight,
                     losses_weight,
@@ -124,34 +126,33 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 );
 
             let cpu_player_index = (cli_input_player_index + 1) % 2;
-            let mut cpu_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
+            let cpu_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
                 &game_rules_authority,
                 &game_state_weights_calculator,
                 cpu_player_index,
             );
 
             let cli_game_state_formatter = games::checkers::CLIGameStateFormatter {};
-            let mut user_input_game_state_creator =
-                games::checkers::UserInputGameStateCreator::new();
+            let user_input_game_state_creator = games::checkers::UserInputGameStateCreator::new();
 
-            let mut cli_input_player_turn_taker = CLIInputPlayerTurnTaker::new(
+            let cli_input_player_turn_taker = CLIInputPlayerTurnTaker::new(
                 &cli_game_state_formatter,
                 cli_input_player_index,
-                &mut user_input_game_state_creator,
+                &user_input_game_state_creator,
             );
 
-            let mut turn_takers: Vec<&mut dyn TurnTaker<games::checkers::GameStateType>> =
-                vec![&mut cpu_player_turn_taker];
+            let mut turn_takers: Vec<&dyn TurnTaker<games::checkers::GameStateType>> =
+                vec![&cpu_player_turn_taker];
             turn_takers.insert(
                 cli_input_player_index as usize,
-                &mut cli_input_player_turn_taker,
+                &cli_input_player_turn_taker,
             );
 
             trainer
                 .train(
                     1,
                     games::checkers::create_initial_game_state,
-                    &mut turn_takers,
+                    &turn_takers,
                     -1,
                     true,
                 )
@@ -161,7 +162,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             let game_name = "tic-tac-toe";
             let logs_serializer_version = 1;
 
-            let lru_cache_max_capacity: usize = 100_000;
+            let lru_cache_max_capacity: usize = 1_000_000;
             let game_state_records_dal = SqliteGameStateRecordsDAL::new(game_name, sqlite_db_path)
                 .expect("Failed to create SqliteGameStateRecordsDAL.");
             let game_state_records_dal_rc = Rc::new(RefCell::new(game_state_records_dal));
@@ -169,15 +170,17 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 lru_cache_max_capacity,
                 Rc::clone(&game_state_records_dal_rc),
             );
-            let game_state_records_provider_ref_cell = RefCell::new(game_state_records_provider);
 
-            let game_reports_persister = SqliteByteArrayLogGameReportsPersister::new(
+            let sqlite_game_reports_processor = SqliteByteArrayLogGameReportsProcessor::new(
                 game_name,
                 logs_serializer_version,
-                1,
+                10_000,
                 sqlite_db_path,
             );
-            let game_reports_persister_ref_cell = RefCell::new(game_reports_persister);
+            let game_reports_processors_vector: Vec<&dyn GameReportsProcessor<Vec<u8>, ()>> =
+                vec![&game_state_records_provider, &sqlite_game_reports_processor];
+            let game_reports_processor =
+                GameReportsIterativeProcessor::new(game_reports_processors_vector);
 
             let game_rules_authority = games::tic_tac_toe::GameRulesAuthority {};
             let game_state_serializer = games::tic_tac_toe::ByteArrayGameStateSerializer {};
@@ -187,18 +190,14 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             let mut trainer = StandardTrainer::new(
                 &mut base_game_runner,
                 game_name,
-                &game_reports_persister_ref_cell,
-                &game_state_records_provider_ref_cell,
-                false,
-                vec![
-                    &game_reports_persister_ref_cell,
-                    &game_state_records_provider_ref_cell,
-                ],
+                &game_reports_processor,
+                true,
+                vec![&game_state_records_provider],
             );
 
             let game_state_weights_calculator =
                 RecordValuesWeightedSumGameStateWeightsCalculator::new(
-                    &game_state_records_provider_ref_cell,
+                    &game_state_records_provider,
                     &game_state_serializer,
                     draws_weight,
                     losses_weight,
@@ -207,7 +206,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 );
 
             let cpu_player_index = (cli_input_player_index + 1) % 2;
-            let mut cpu_player_turn_taker = BestWeightSelectionTurnTaker::new(
+            let cpu_player_turn_taker = BestWeightSelectionTurnTaker::new(
                 &game_rules_authority,
                 &game_state_weights_calculator,
                 cpu_player_index,
@@ -217,24 +216,24 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             let mut user_input_game_state_creator =
                 games::tic_tac_toe::UserInputGameStateCreator {};
 
-            let mut cli_input_player_turn_taker = CLIInputPlayerTurnTaker::new(
+            let cli_input_player_turn_taker = CLIInputPlayerTurnTaker::new(
                 &cli_game_state_formatter,
                 cli_input_player_index,
                 &mut user_input_game_state_creator,
             );
 
-            let mut turn_takers: Vec<&mut dyn TurnTaker<games::tic_tac_toe::GameStateType>> =
-                vec![&mut cpu_player_turn_taker];
+            let mut turn_takers: Vec<&dyn TurnTaker<games::tic_tac_toe::GameStateType>> =
+                vec![&cpu_player_turn_taker];
             turn_takers.insert(
                 cli_input_player_index as usize,
-                &mut cli_input_player_turn_taker,
+                &cli_input_player_turn_taker,
             );
 
             trainer
                 .train(
                     1,
                     games::tic_tac_toe::create_initial_game_state,
-                    &mut turn_takers,
+                    &turn_takers,
                     -1,
                     true,
                 )

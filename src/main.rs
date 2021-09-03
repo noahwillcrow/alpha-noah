@@ -1,6 +1,7 @@
 use argparse;
 
 mod cli;
+mod composites;
 mod constants;
 mod enums;
 mod game_runners;

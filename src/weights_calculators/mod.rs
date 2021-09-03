@@ -1,3 +1,5 @@
-mod record_values_weighted_sum_game_state_weights_calculator;
+mod cnn_game_state_weights_calculator;
+pub use cnn_game_state_weights_calculator::CnnGameStateWeightsCalculator;
 
+mod record_values_weighted_sum_game_state_weights_calculator;
 pub use record_values_weighted_sum_game_state_weights_calculator::RecordValuesWeightedSumGameStateWeightsCalculator;

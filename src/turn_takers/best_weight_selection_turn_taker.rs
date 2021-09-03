@@ -25,7 +25,7 @@ impl<'a, GameState: BasicGameState> TurnTaker<GameState>
     for BestWeightSelectionTurnTaker<'a, GameState>
 {
     fn decide_next_game_state(
-        &mut self,
+        &self,
         current_game_state: &GameState,
     ) -> Result<GameState, DecideNextStateError> {
         let available_next_game_states = self

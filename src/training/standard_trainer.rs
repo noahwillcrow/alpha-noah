@@ -1,9 +1,7 @@
-use crate::training::update_game_state_records;
 use crate::traits::{
-    BasicGameState, BasicSerializedGameState, GameReportsPersister, GameRunner,
-    GameStateRecordsProvider, PendingUpdatesManager, TurnTaker,
+    BasicGameState, BasicSerializedGameState, GameReportsProcessor, GameRunner,
+    PendingUpdatesManager, TurnTaker,
 };
-use std::cell::RefCell;
 use std::time::Instant;
 
 pub struct StandardTrainer<
@@ -14,12 +12,10 @@ pub struct StandardTrainer<
 > {
     base_game_runner: &'a mut dyn GameRunner<GameState, SerializedGameState>,
     game_name: String,
-    game_reports_persister_ref_cell:
-        &'a RefCell<dyn GameReportsPersister<SerializedGameState, GameReportsPersisterErrorType>>,
-    game_state_records_provider_ref_cell:
-        &'a RefCell<dyn GameStateRecordsProvider<SerializedGameState>>,
+    game_reports_processor:
+        &'a dyn GameReportsProcessor<SerializedGameState, GameReportsPersisterErrorType>,
     is_verbose: bool,
-    pending_updates_manager_ref_cells: Vec<&'a RefCell<dyn PendingUpdatesManager>>,
+    pending_updates_managers: Vec<&'a dyn PendingUpdatesManager>,
 }
 
 impl<
@@ -32,22 +28,19 @@ impl<
     pub fn new(
         base_game_runner: &'a mut dyn GameRunner<GameState, SerializedGameState>,
         game_name: &str,
-        game_reports_persister_ref_cell: &'a RefCell<
-            dyn GameReportsPersister<SerializedGameState, GameReportsPersisterErrorType>,
-        >,
-        game_state_records_provider_ref_cell: &'a RefCell<
-            dyn GameStateRecordsProvider<SerializedGameState>,
+        game_reports_processor: &'a dyn GameReportsProcessor<
+            SerializedGameState,
+            GameReportsPersisterErrorType,
         >,
         is_verbose: bool,
-        pending_updates_manager_ref_cells: Vec<&'a RefCell<dyn PendingUpdatesManager>>,
+        pending_updates_managers: Vec<&'a dyn PendingUpdatesManager>,
     ) -> StandardTrainer<'a, GameState, SerializedGameState, GameReportsPersisterErrorType> {
         return StandardTrainer {
             base_game_runner: base_game_runner,
             game_name: String::from(game_name),
-            game_reports_persister_ref_cell: game_reports_persister_ref_cell,
-            game_state_records_provider_ref_cell: game_state_records_provider_ref_cell,
+            game_reports_processor: game_reports_processor,
             is_verbose: is_verbose,
-            pending_updates_manager_ref_cells: pending_updates_manager_ref_cells,
+            pending_updates_managers: pending_updates_managers,
         };
     }
 
@@ -55,7 +48,7 @@ impl<
         &mut self,
         number_of_games: u32,
         create_initial_game_state: fn() -> GameState,
-        turn_takers: &mut Vec<&mut dyn TurnTaker<GameState>>,
+        turn_takers: &Vec<&dyn TurnTaker<GameState>>,
         max_number_of_turns: i32,
         is_reaching_max_number_of_turns_a_draw: bool,
     ) -> Result<(), GameReportsPersisterErrorType> {
@@ -90,13 +83,8 @@ impl<
                 Ok(game_report_option) => match game_report_option {
                     Some(game_report) => {
                         update_result_counts(game_report.winning_player_index);
-                        update_game_state_records(
-                            self.game_state_records_provider_ref_cell,
-                            game_report.clone(),
-                        );
-                        self.game_reports_persister_ref_cell
-                            .borrow_mut()
-                            .persist_game_report(game_report)?;
+                        self.game_reports_processor
+                            .process_game_report(game_report)?;
                     }
                     None => inconclusive_games_count += 1,
                 },
@@ -130,9 +118,8 @@ impl<
         self.write_line_if_verbose("Waiting for all pending updates to be committed.");
         let pending_updates_start_instant = Instant::now();
 
-        for pending_updates_manager_ref_cell in self.pending_updates_manager_ref_cells.iter() {
-            pending_updates_manager_ref_cell
-                .borrow_mut()
+        for pending_updates_manager in self.pending_updates_managers.iter() {
+            pending_updates_manager
                 .try_commit_pending_updates_in_background(usize::MAX)
                 .join()
                 .expect("Failed to commit pending updates");

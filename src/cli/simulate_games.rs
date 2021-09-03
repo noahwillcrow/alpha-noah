@@ -1,15 +1,17 @@
 use crate::cli::enums::Game;
+use crate::composites::GameReportsIterativeProcessor;
 use crate::game_runners::StandardTurnBasedGameRunner;
 use crate::game_state_records_providers::LruCacheFrontedGameStateRecordsProvider;
 use crate::games;
-use crate::persistence::{SqliteByteArrayLogGameReportsPersister, SqliteGameStateRecordsDAL};
+use crate::persistence::{SqliteByteArrayLogGameReportsProcessor, SqliteGameStateRecordsDAL};
 use crate::training::StandardTrainer;
+use crate::traits::GameReportsProcessor;
 use crate::turn_takers::{BestWeightSelectionTurnTaker, WeightedRandomSelectionTurnTaker};
 use crate::weights_calculators::RecordValuesWeightedSumGameStateWeightsCalculator;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
+pub fn simulate_games<'a>(args: Vec<String>) -> Result<(), ()> {
     let mut game = Game::TicTacToe;
     let mut number_of_games = 100;
     let mut max_number_of_turns = 1000;
@@ -96,15 +98,17 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
                 lru_cache_max_capacity,
                 Rc::clone(&game_state_records_dal_rc),
             );
-            let game_state_records_provider_ref_cell = RefCell::new(game_state_records_provider);
 
-            let game_reports_persister = SqliteByteArrayLogGameReportsPersister::new(
+            let sqlite_game_reports_processor = SqliteByteArrayLogGameReportsProcessor::new(
                 game_name,
                 logs_serializer_version,
                 10_000,
                 sqlite_db_path,
             );
-            let game_reports_persister_ref_cell = RefCell::new(game_reports_persister);
+            let game_reports_processors_vector: Vec<&dyn GameReportsProcessor<Vec<u8>, ()>> =
+                vec![&game_state_records_provider, &sqlite_game_reports_processor];
+            let game_reports_processor =
+                GameReportsIterativeProcessor::new(game_reports_processors_vector);
 
             let game_rules_authority = games::checkers::GameRulesAuthority {};
             let game_state_serializer = games::checkers::ByteArrayGameStateSerializer {};
@@ -114,18 +118,14 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
             let mut trainer = StandardTrainer::new(
                 &mut base_game_runner,
                 game_name,
-                &game_reports_persister_ref_cell,
-                &game_state_records_provider_ref_cell,
+                &game_reports_processor,
                 true,
-                vec![
-                    &game_reports_persister_ref_cell,
-                    &game_state_records_provider_ref_cell,
-                ],
+                vec![&game_state_records_provider],
             );
 
             let game_state_weights_calculator =
                 RecordValuesWeightedSumGameStateWeightsCalculator::new(
-                    &game_state_records_provider_ref_cell,
+                    &game_state_records_provider,
                     &game_state_serializer,
                     draws_weight,
                     losses_weight,
@@ -167,15 +167,17 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
                 lru_cache_max_capacity,
                 Rc::clone(&game_state_records_dal_rc),
             );
-            let game_state_records_provider_ref_cell = RefCell::new(game_state_records_provider);
 
-            let game_reports_persister = SqliteByteArrayLogGameReportsPersister::new(
+            let sqlite_game_reports_processor = SqliteByteArrayLogGameReportsProcessor::new(
                 game_name,
                 logs_serializer_version,
                 10_000,
                 sqlite_db_path,
             );
-            let game_reports_persister_ref_cell = RefCell::new(game_reports_persister);
+            let game_reports_processors_vector: Vec<&dyn GameReportsProcessor<Vec<u8>, ()>> =
+                vec![&game_state_records_provider, &sqlite_game_reports_processor];
+            let game_reports_processor =
+                GameReportsIterativeProcessor::new(game_reports_processors_vector);
 
             let game_rules_authority = games::tic_tac_toe::GameRulesAuthority {};
             let game_state_serializer = games::tic_tac_toe::ByteArrayGameStateSerializer {};
@@ -185,18 +187,14 @@ pub fn simulate_games(args: Vec<String>) -> Result<(), ()> {
             let mut trainer = StandardTrainer::new(
                 &mut base_game_runner,
                 game_name,
-                &game_reports_persister_ref_cell,
-                &game_state_records_provider_ref_cell,
+                &game_reports_processor,
                 true,
-                vec![
-                    &game_reports_persister_ref_cell,
-                    &game_state_records_provider_ref_cell,
-                ],
+                vec![&game_state_records_provider],
             );
 
             let game_state_weights_calculator =
                 RecordValuesWeightedSumGameStateWeightsCalculator::new(
-                    &game_state_records_provider_ref_cell,
+                    &game_state_records_provider,
                     &game_state_serializer,
                     draws_weight,
                     losses_weight,

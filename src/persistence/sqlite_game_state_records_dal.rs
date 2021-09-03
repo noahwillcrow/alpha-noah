@@ -1,5 +1,8 @@
 use crate::structs::{GameStateRecord, IncrementPersistedGameStateRecordValuesTask};
-use crate::traits::{BasicSerializedGameState, GameStateRecordsDAL};
+use crate::traits::{
+    BasicSerializedGameState, GameStateRecordUpdatesPersister, GameStateRecordsDAL,
+    GameStateRecordsFetcher,
+};
 use rusqlite::Connection;
 use rusqlite::Error::QueryReturnedNoRows;
 use std::thread;
@@ -29,8 +32,8 @@ impl SqliteGameStateRecordsDAL {
 
 impl BasicSerializedGameState for Vec<u8> {}
 
-impl GameStateRecordsDAL<Vec<u8>> for SqliteGameStateRecordsDAL {
-    fn get_game_state_record(&mut self, state_hash: &Vec<u8>) -> Option<GameStateRecord> {
+impl GameStateRecordsFetcher<Vec<u8>> for SqliteGameStateRecordsDAL {
+    fn get_game_state_record(&self, state_hash: &Vec<u8>) -> Option<GameStateRecord> {
         match try_get_state_record_from_db(&self.read_only_connection, &self.game_name, &state_hash)
         {
             Ok(Some(state_record)) => return Some(state_record),
@@ -44,7 +47,9 @@ impl GameStateRecordsDAL<Vec<u8>> for SqliteGameStateRecordsDAL {
             }
         }
     }
+}
 
+impl GameStateRecordUpdatesPersister<Vec<u8>> for SqliteGameStateRecordsDAL {
     fn increment_game_state_records_values_in_background(
         &self,
         increment_tasks: Vec<IncrementPersistedGameStateRecordValuesTask<Vec<u8>>>,
@@ -100,6 +105,8 @@ impl GameStateRecordsDAL<Vec<u8>> for SqliteGameStateRecordsDAL {
         });
     }
 }
+
+impl GameStateRecordsDAL<Vec<u8>> for SqliteGameStateRecordsDAL {}
 
 fn try_get_state_record_from_db(
     connection: &Connection,

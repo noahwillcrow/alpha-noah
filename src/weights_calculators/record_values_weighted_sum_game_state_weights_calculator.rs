@@ -1,10 +1,9 @@
 use crate::internal::utility_functions;
 use crate::structs::GameStateRecord;
 use crate::traits::{
-    BasicGameState, BasicSerializedGameState, GameStateRecordsProvider, GameStateSerializer,
+    BasicGameState, BasicSerializedGameState, GameStateRecordsFetcher, GameStateSerializer,
     GameStateWeightsCalculator,
 };
-use std::cell::RefCell;
 use std::cmp;
 
 pub struct RecordValuesWeightedSumGameStateWeightsCalculator<
@@ -12,8 +11,7 @@ pub struct RecordValuesWeightedSumGameStateWeightsCalculator<
     GameState: BasicGameState,
     SerializedGameState: BasicSerializedGameState,
 > {
-    game_state_records_provider_ref_cell:
-        &'a RefCell<dyn GameStateRecordsProvider<SerializedGameState>>,
+    game_state_records_fetcher: &'a dyn GameStateRecordsFetcher<SerializedGameState>,
     game_state_serializer: &'a dyn GameStateSerializer<GameState, SerializedGameState>,
     // actual results weights
     pub draws_weight: f32,
@@ -28,9 +26,7 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
     RecordValuesWeightedSumGameStateWeightsCalculator<'a, GameState, SerializedGameState>
 {
     pub fn new(
-        game_state_records_provider_ref_cell: &'a RefCell<
-            dyn GameStateRecordsProvider<SerializedGameState>,
-        >,
+        game_state_records_fetcher: &'a dyn GameStateRecordsFetcher<SerializedGameState>,
         game_state_serializer: &'a dyn GameStateSerializer<GameState, SerializedGameState>,
         draws_weight: f32,
         losses_weight: f32,
@@ -38,7 +34,7 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
         visits_deficit_weight: f32,
     ) -> RecordValuesWeightedSumGameStateWeightsCalculator<'a, GameState, SerializedGameState> {
         return RecordValuesWeightedSumGameStateWeightsCalculator {
-            game_state_records_provider_ref_cell: game_state_records_provider_ref_cell,
+            game_state_records_fetcher: game_state_records_fetcher,
             game_state_serializer: game_state_serializer,
             draws_weight: draws_weight,
             losses_weight: losses_weight,
@@ -63,8 +59,7 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
                 .game_state_serializer
                 .serialize_game_state(responsible_player_index, game_state);
             let game_state_record_result = self
-                .game_state_records_provider_ref_cell
-                .borrow_mut()
+                .game_state_records_fetcher
                 .get_game_state_record(&serialized_game_state);
 
             match game_state_record_result {
@@ -81,7 +76,6 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
         }
 
         let mut weights: Vec<f32> = vec![];
-        let mut min_weight: f32 = f32::MAX;
 
         for game_state_record in game_state_records.iter() {
             let visits_count = utility_functions::count_visits(&game_state_record);
@@ -92,21 +86,6 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
                 + (self.visits_deficit_weight * visits_deficit as f32);
 
             weights.push(total_weight);
-
-            if total_weight < min_weight {
-                min_weight = total_weight;
-            }
-        }
-
-        if min_weight < 1.0 {
-            // It is possible that all of our weights are negative or zero
-            // so now we'll go through and raise them all to at least 1.
-            // To do this, we'll find the lowest value and then raise everything
-            // else by the same value.
-            let addend = 1.0 - min_weight;
-            for i in 0..weights.len() {
-                weights[i] += addend;
-            }
         }
 
         return weights;

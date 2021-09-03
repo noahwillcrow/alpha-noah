@@ -15,5 +15,8 @@ pub use game_rules_authority::GameRulesAuthority;
 
 mod internal;
 
+mod transform_game_state_to_tensor;
+pub use transform_game_state_to_tensor::transform_game_state_to_tensor;
+
 mod user_input_game_state_creator;
 pub use user_input_game_state_creator::UserInputGameStateCreator;

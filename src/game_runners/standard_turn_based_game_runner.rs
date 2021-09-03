@@ -33,9 +33,9 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
     for StandardTurnBasedGameRunner<'a, GameState, SerializedGameState>
 {
     fn run_game(
-        &mut self,
+        &self,
         initial_game_state: GameState,
-        turn_takers: &mut Vec<&mut dyn TurnTaker<GameState>>,
+        turn_takers: &Vec<&dyn TurnTaker<GameState>>,
         max_number_of_turns: i32,
         is_reaching_max_number_of_turns_a_draw: bool,
     ) -> Result<Option<GameReport<SerializedGameState>>, RunGameError> {
@@ -77,7 +77,7 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
             turns_counter += 1;
 
             current_player_index = next_player_index;
-            let current_turn_taker = &mut turn_takers[current_player_index as usize];
+            let current_turn_taker = turn_takers[current_player_index as usize];
 
             match current_turn_taker.decide_next_game_state(&current_game_state) {
                 Ok(new_game_state) => {

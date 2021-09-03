@@ -1,3 +1,4 @@
+pub mod composites;
 pub mod constants;
 pub mod enums;
 pub mod game_runners;

@@ -1,5 +1,3 @@
-mod in_memory_game_state_records_provider;
 mod lru_cache_fronted_game_state_records_provider;
 
-pub use in_memory_game_state_records_provider::InMemoryGameStateRecordsProvider;
 pub use lru_cache_fronted_game_state_records_provider::LruCacheFrontedGameStateRecordsProvider;

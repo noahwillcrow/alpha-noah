@@ -22,7 +22,7 @@ impl UserInputGameStateCreator {
 
 impl TUserInputGameStateCreator<CheckersGameState, String> for UserInputGameStateCreator {
     fn create_new_game_state_from_user_input(
-        &mut self,
+        &self,
         current_player_index: i32,
         current_game_state: &CheckersGameState,
         user_input: String,

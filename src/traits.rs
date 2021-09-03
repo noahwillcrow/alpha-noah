@@ -10,9 +10,9 @@ pub trait CLIGameStateFormatter<GameState: BasicGameState> {
     fn format_game_state_for_cli(&self, game_state: &GameState) -> String;
 }
 
-pub trait GameReportsPersister<SerializedGameState: BasicSerializedGameState, ErrorType> {
-    fn persist_game_report(
-        &mut self,
+pub trait GameReportsProcessor<SerializedGameState: BasicSerializedGameState, ErrorType> {
+    fn process_game_report(
+        &self,
         game_report: GameReport<SerializedGameState>,
     ) -> Result<(), ErrorType>;
 }
@@ -37,9 +37,9 @@ pub trait GameRulesAuthority<GameState: BasicGameState> {
 
 pub trait GameRunner<GameState: BasicGameState, SerializedGameState: BasicSerializedGameState> {
     fn run_game(
-        &mut self,
+        &self,
         initial_game_state: GameState,
-        turn_takers: &mut Vec<&mut dyn TurnTaker<GameState>>,
+        turn_takers: &Vec<&dyn TurnTaker<GameState>>,
         max_number_of_turns: i32,
         is_reaching_max_number_of_turns_a_draw: bool,
     ) -> Result<Option<GameReport<SerializedGameState>>, RunGameError>;
@@ -56,30 +56,23 @@ pub trait GameStateDeserializer<
     ) -> (i32, GameState);
 }
 
-pub trait GameStateRecordsDAL<SerializedGameState: BasicSerializedGameState> {
+pub trait GameStateRecordsDAL<SerializedGameState: BasicSerializedGameState>:
+    GameStateRecordUpdatesPersister<SerializedGameState> + GameStateRecordsFetcher<SerializedGameState>
+{
+}
+
+pub trait GameStateRecordsFetcher<SerializedGameState: BasicSerializedGameState> {
     fn get_game_state_record(
-        &mut self,
+        &self,
         serialized_game_state: &SerializedGameState,
     ) -> Option<GameStateRecord>;
+}
 
+pub trait GameStateRecordUpdatesPersister<SerializedGameState: BasicSerializedGameState> {
     fn increment_game_state_records_values_in_background(
         &self,
         increment_tasks: Vec<IncrementPersistedGameStateRecordValuesTask<SerializedGameState>>,
     ) -> std::thread::JoinHandle<()>;
-}
-
-pub trait GameStateRecordsProvider<SerializedGameState: BasicSerializedGameState> {
-    fn get_game_state_record(
-        &mut self,
-        serialized_game_state: &SerializedGameState,
-    ) -> Option<GameStateRecord>;
-
-    fn update_game_state_record(
-        &mut self,
-        serialized_game_state: &SerializedGameState,
-        did_draw: bool,
-        did_win: bool,
-    );
 }
 
 pub trait GameStateSerializer<
@@ -104,21 +97,21 @@ pub trait GameStateWeightsCalculator<GameState: BasicGameState> {
 
 pub trait PendingUpdatesManager {
     fn try_commit_pending_updates_in_background(
-        &mut self,
+        &self,
         max_number_to_commit: usize,
     ) -> std::thread::JoinHandle<()>;
 }
 
 pub trait TurnTaker<GameState: BasicGameState> {
     fn decide_next_game_state(
-        &mut self,
+        &self,
         current_game_state: &GameState,
     ) -> Result<GameState, DecideNextStateError>;
 }
 
 pub trait UserInputGameStateCreator<GameState: BasicGameState, UserInputType> {
     fn create_new_game_state_from_user_input(
-        &mut self,
+        &self,
         current_player_index: i32,
         current_game_state: &GameState,
         user_input: UserInputType,
