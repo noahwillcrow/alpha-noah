@@ -4,6 +4,12 @@ use std::collections::HashSet;
 pub const MAX_ROW: i8 = 7;
 pub const MAX_COL: i8 = 7;
 
+pub const EMPTY_SPACE_VALUE: u8 = 0;
+pub const FIRST_PLAYER_SINGLE_PIECE_VALUE: u8 = 1;
+pub const FIRST_PLAYER_DOUBLE_PIECE_VALUE: u8 = 11;
+pub const SECOND_PLAYER_SINGLE_PIECE_VALUE: u8 = 2;
+pub const SECOND_PLAYER_DOUBLE_PIECE_VALUE: u8 = 22;
+
 pub struct MoveSearchParameters {
     pub forward_row_direction: i8,
     pub single_piece_value: u8,
@@ -62,7 +68,7 @@ pub fn fill_vector_with_available_simple_move_states_for_piece(
             current_game_state[simple_move_coor.0 as usize][simple_move_coor.1 as usize];
         if simple_move_space_value == 0 {
             let mut simple_move_state = current_game_state.clone();
-            simple_move_state[start_coor.0][start_coor.1] = 0;
+            simple_move_state[start_coor.0][start_coor.1] = EMPTY_SPACE_VALUE;
 
             if current_game_state_space_value == single_piece_value
                 && simple_move_coor.0 as usize == double_row
@@ -159,8 +165,8 @@ pub fn fill_vector_with_available_capture_move_states_for_piece(
 
         // a capture is possible!
         let mut capture_move_state = start_game_state.clone();
-        capture_move_state[move_from_coor.0][move_from_coor.1] = 0;
-        capture_move_state[captured_piece_coor.0][captured_piece_coor.1] = 0;
+        capture_move_state[move_from_coor.0][move_from_coor.1] = EMPTY_SPACE_VALUE;
+        capture_move_state[captured_piece_coor.0][captured_piece_coor.1] = EMPTY_SPACE_VALUE;
 
         let start_game_state_space_value = start_game_state[move_from_coor.0][move_from_coor.1];
         if start_game_state_space_value == single_piece_value
@@ -200,8 +206,16 @@ pub fn get_player_specific_move_search_parameters(
 
     return MoveSearchParameters {
         forward_row_direction: forward_row_direction,
-        single_piece_value: (if current_player_index == 0 { 1 } else { 2 }) as u8,
-        double_piece_value: if current_player_index == 0 { 11 } else { 22 },
+        single_piece_value: (if current_player_index == 0 {
+            FIRST_PLAYER_SINGLE_PIECE_VALUE
+        } else {
+            SECOND_PLAYER_SINGLE_PIECE_VALUE
+        }) as u8,
+        double_piece_value: if current_player_index == 0 {
+            FIRST_PLAYER_DOUBLE_PIECE_VALUE
+        } else {
+            SECOND_PLAYER_DOUBLE_PIECE_VALUE
+        },
         single_piece_available_directions: [
             (forward_row_direction, 1 as i8),
             (forward_row_direction, -1 as i8),
@@ -234,16 +248,16 @@ pub fn serialize_game_state(
     for i in 0..game_state.len() {
         for j in 0..game_state[i].len() {
             let position_value = game_state[i][j];
-            if position_value > 0 {
+            if position_value != EMPTY_SPACE_VALUE {
                 number_of_pieces += 1;
 
                 let mut piece_byte = (i * game_state.len() + j) as u8;
 
                 match position_value {
-                    1 => (), // first two bits stay 0, no point in doing an operation here
-                    11 => piece_byte &= 0b01_00_00_00,
-                    2 => piece_byte &= 0b10_00_00_00,
-                    22 => piece_byte &= 0b11_00_00_00,
+                    FIRST_PLAYER_SINGLE_PIECE_VALUE => (), // first two bits stay 0, no point in doing an operation here
+                    FIRST_PLAYER_DOUBLE_PIECE_VALUE => piece_byte &= 0b01_00_00_00,
+                    SECOND_PLAYER_SINGLE_PIECE_VALUE => piece_byte &= 0b10_00_00_00,
+                    SECOND_PLAYER_DOUBLE_PIECE_VALUE => piece_byte &= 0b11_00_00_00,
                     _ => panic!(
                         "Encountered illegal position value {} at position ({}, {})",
                         position_value, i, j

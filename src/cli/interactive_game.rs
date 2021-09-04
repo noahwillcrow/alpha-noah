@@ -9,7 +9,9 @@ use crate::traits::{GameReportsProcessor, TurnTaker};
 use crate::turn_takers::{
     BestWeightSelectionTurnTaker, CLIInputPlayerTurnTaker, WeightedRandomSelectionTurnTaker,
 };
-use crate::weights_calculators::RecordValuesWeightedSumGameStateWeightsCalculator;
+use crate::weights_calculators::{
+    CnnGameStateWeightsCalculator, RecordValuesWeightedSumGameStateWeightsCalculator,
+};
 
 pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
     let mut game = Game::TicTacToe;
@@ -109,18 +111,18 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 vec![&game_state_records_provider],
             );
 
-            // let game_state_weights_calculator = CnnGameStateWeightsCalculator::new(
-            //     &games::checkers::transform_game_state_to_tensor,
-            // );
-            let game_state_weights_calculator =
-                RecordValuesWeightedSumGameStateWeightsCalculator::new(
-                    &game_state_records_provider,
-                    &game_state_serializer,
-                    draws_weight,
-                    losses_weight,
-                    wins_weight,
-                    visits_deficit_weight,
-                );
+            let game_state_weights_calculator = CnnGameStateWeightsCalculator::new(
+                &games::checkers::transform_game_state_to_tensor,
+            );
+            // let game_state_weights_calculator =
+            //     RecordValuesWeightedSumGameStateWeightsCalculator::new(
+            //         &game_state_records_provider,
+            //         &game_state_serializer,
+            //         draws_weight,
+            //         losses_weight,
+            //         wins_weight,
+            //         visits_deficit_weight,
+            //     );
 
             let cpu_player_index = (cli_input_player_index + 1) % 2;
             let cpu_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
