@@ -4,14 +4,14 @@ use crate::game_runners::StandardTurnBasedGameRunner;
 use crate::game_state_records_providers::LruCacheFrontedGameStateRecordsProvider;
 use crate::games;
 use crate::persistence::{SqliteByteArrayLogGameReportsProcessor, SqliteGameStateRecordsDAL};
-use crate::training::StandardTrainer;
-use crate::traits::{GameReportsProcessor, TurnTaker};
-use crate::turn_takers::{
-    BestWeightSelectionTurnTaker, CLIInputPlayerTurnTaker, WeightedRandomSelectionTurnTaker,
-};
+use crate::simulating::StandardSimulator;
+use crate::training::TorchNetTrainer;
+use crate::traits::{GameReportsProcessor, PendingUpdatesManager, TurnTaker};
+use crate::turn_takers::{BestWeightSelectionTurnTaker, CLIInputPlayerTurnTaker};
 use crate::weights_calculators::{
     CnnGameStateWeightsCalculator, RecordValuesWeightedSumGameStateWeightsCalculator,
 };
+use tch::{nn, Device};
 
 pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
     let mut game = Game::TicTacToe;
@@ -87,31 +87,48 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 &game_state_records_dal,
             );
 
+            let game_rules_authority = games::checkers::GameRulesAuthority {};
+            let game_state_serializer = games::checkers::ByteArrayGameStateSerializer {};
+            let game_state_deserializer = games::checkers::ByteArrayGameStateDeserializer {};
+            let mut torch_var_store = nn::VarStore::new(Device::cuda_if_available());
+            let torch_net = games::checkers::TorchNet::new(&torch_var_store.root());
+            torch_var_store.load("checkers-var-store.weights").unwrap();
+            let torch_net_trainer = TorchNetTrainer::new(
+                "checkers-var-store.weights",
+                &game_state_deserializer,
+                &torch_net,
+                &torch_var_store,
+                &games::checkers::transform_game_state_to_tensor,
+            );
+
             let sqlite_game_reports_processor = SqliteByteArrayLogGameReportsProcessor::new(
                 game_name,
                 logs_serializer_version,
                 10_000,
                 sqlite_db_path,
             );
-            let game_reports_processors_vector: Vec<&dyn GameReportsProcessor<Vec<u8>, ()>> =
-                vec![&game_state_records_provider, &sqlite_game_reports_processor];
+            let game_reports_processors_vector: Vec<&dyn GameReportsProcessor<Vec<u8>, ()>> = vec![
+                &game_state_records_provider,
+                &sqlite_game_reports_processor,
+                &torch_net_trainer,
+            ];
             let game_reports_processor =
                 GameReportsIterativeProcessor::new(game_reports_processors_vector);
 
-            let game_rules_authority = games::checkers::GameRulesAuthority {};
-            let game_state_serializer = games::checkers::ByteArrayGameStateSerializer {};
-
             let mut base_game_runner =
                 StandardTurnBasedGameRunner::new(&game_rules_authority, &game_state_serializer);
-            let mut trainer = StandardTrainer::new(
+            let pending_updates_managers: Vec<&dyn PendingUpdatesManager> =
+                vec![&game_state_records_provider];
+            let mut simulator = StandardSimulator::new(
                 &mut base_game_runner,
                 game_name,
                 &game_reports_processor,
                 true,
-                vec![&game_state_records_provider],
+                &pending_updates_managers,
             );
 
             let game_state_weights_calculator = CnnGameStateWeightsCalculator::new(
+                &torch_net,
                 &games::checkers::transform_game_state_to_tensor,
             );
             // let game_state_weights_calculator =
@@ -125,7 +142,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             //     );
 
             let cpu_player_index = (cli_input_player_index + 1) % 2;
-            let cpu_player_turn_taker = WeightedRandomSelectionTurnTaker::new(
+            let cpu_player_turn_taker = BestWeightSelectionTurnTaker::new(
                 &game_rules_authority,
                 &game_state_weights_calculator,
                 cpu_player_index,
@@ -147,8 +164,8 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 &cli_input_player_turn_taker,
             );
 
-            trainer
-                .train(
+            simulator
+                .run_simulations(
                     1,
                     games::checkers::create_initial_game_state,
                     &turn_takers,
@@ -185,12 +202,14 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
 
             let mut base_game_runner =
                 StandardTurnBasedGameRunner::new(&game_rules_authority, &game_state_serializer);
-            let mut trainer = StandardTrainer::new(
+            let pending_updates_managers: Vec<&dyn PendingUpdatesManager> =
+                vec![&game_state_records_provider];
+            let mut simulator = StandardSimulator::new(
                 &mut base_game_runner,
                 game_name,
                 &game_reports_processor,
                 true,
-                vec![&game_state_records_provider],
+                &pending_updates_managers,
             );
 
             let game_state_weights_calculator =
@@ -227,8 +246,8 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 &cli_input_player_turn_taker,
             );
 
-            trainer
-                .train(
+            simulator
+                .run_simulations(
                     1,
                     games::tic_tac_toe::create_initial_game_state,
                     &turn_takers,

@@ -255,9 +255,9 @@ pub fn serialize_game_state(
 
                 match position_value {
                     FIRST_PLAYER_SINGLE_PIECE_VALUE => (), // first two bits stay 0, no point in doing an operation here
-                    FIRST_PLAYER_DOUBLE_PIECE_VALUE => piece_byte &= 0b01_00_00_00,
-                    SECOND_PLAYER_SINGLE_PIECE_VALUE => piece_byte &= 0b10_00_00_00,
-                    SECOND_PLAYER_DOUBLE_PIECE_VALUE => piece_byte &= 0b11_00_00_00,
+                    FIRST_PLAYER_DOUBLE_PIECE_VALUE => piece_byte ^= 0b01_00_00_00,
+                    SECOND_PLAYER_SINGLE_PIECE_VALUE => piece_byte ^= 0b10_00_00_00,
+                    SECOND_PLAYER_DOUBLE_PIECE_VALUE => piece_byte ^= 0b11_00_00_00,
                     _ => panic!(
                         "Encountered illegal position value {} at position ({}, {})",
                         position_value, i, j
@@ -269,7 +269,12 @@ pub fn serialize_game_state(
         }
     }
 
-    serialized_game_state[0] = ((responsible_player_index as u8) << 7) + number_of_pieces;
+    let responsible_player_byte = if responsible_player_index == -1 {
+        0b11_0_00000
+    } else {
+        (responsible_player_index as u8) << 6
+    };
+    serialized_game_state[0] = responsible_player_byte + number_of_pieces;
 
     return serialized_game_state;
 }

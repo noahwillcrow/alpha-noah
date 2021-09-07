@@ -2,9 +2,11 @@ use crate::traits::{
     BasicGameState, BasicSerializedGameState, GameReportsProcessor, GameRunner,
     PendingUpdatesManager, TurnTaker,
 };
-use std::time::Instant;
+use chrono::Local;
+use std::io::{stdout, Write};
+use std::time::{Instant, SystemTime};
 
-pub struct StandardTrainer<
+pub struct StandardSimulator<
     'a,
     GameState: BasicGameState,
     SerializedGameState: BasicSerializedGameState,
@@ -15,7 +17,7 @@ pub struct StandardTrainer<
     game_reports_processor:
         &'a dyn GameReportsProcessor<SerializedGameState, GameReportsPersisterErrorType>,
     is_verbose: bool,
-    pending_updates_managers: Vec<&'a dyn PendingUpdatesManager>,
+    pending_updates_managers: &'a Vec<&'a dyn PendingUpdatesManager>,
 }
 
 impl<
@@ -23,7 +25,7 @@ impl<
         GameState: BasicGameState,
         SerializedGameState: BasicSerializedGameState,
         GameReportsPersisterErrorType,
-    > StandardTrainer<'a, GameState, SerializedGameState, GameReportsPersisterErrorType>
+    > StandardSimulator<'a, GameState, SerializedGameState, GameReportsPersisterErrorType>
 {
     pub fn new(
         base_game_runner: &'a mut dyn GameRunner<GameState, SerializedGameState>,
@@ -33,9 +35,9 @@ impl<
             GameReportsPersisterErrorType,
         >,
         is_verbose: bool,
-        pending_updates_managers: Vec<&'a dyn PendingUpdatesManager>,
-    ) -> StandardTrainer<'a, GameState, SerializedGameState, GameReportsPersisterErrorType> {
-        return StandardTrainer {
+        pending_updates_managers: &'a Vec<&'a dyn PendingUpdatesManager>,
+    ) -> StandardSimulator<'a, GameState, SerializedGameState, GameReportsPersisterErrorType> {
+        return StandardSimulator {
             base_game_runner: base_game_runner,
             game_name: String::from(game_name),
             game_reports_processor: game_reports_processor,
@@ -44,7 +46,7 @@ impl<
         };
     }
 
-    pub fn train(
+    pub fn run_simulations(
         &mut self,
         number_of_games: u32,
         create_initial_game_state: fn() -> GameState,
@@ -54,8 +56,10 @@ impl<
     ) -> Result<(), GameReportsPersisterErrorType> {
         self.write_line_if_verbose(
             &format!(
-                "Starting simulation of {} games of {}.",
-                number_of_games, &self.game_name
+                "Starting simulation of {} games of {}. Initial start date and time is {}.",
+                number_of_games,
+                &self.game_name,
+                Local::now().format("%Y-%m-%d - %H:%M:%S"),
             )[..],
         );
 
@@ -70,8 +74,11 @@ impl<
             }
         };
 
+        let mut stdout = stdout();
+
+        let mut displayed_progress_percentage: i32 = -1;
         let simulations_start_instant = Instant::now();
-        for _ in 0..number_of_games {
+        for i in 0..number_of_games {
             let run_game_result = self.base_game_runner.run_game(
                 create_initial_game_state(),
                 turn_takers,
@@ -84,13 +91,27 @@ impl<
                     Some(game_report) => {
                         update_result_counts(game_report.winning_player_index);
                         self.game_reports_processor
-                            .process_game_report(game_report)?;
+                            .process_game_report(&mut game_report.clone())?;
                     }
                     None => inconclusive_games_count += 1,
                 },
                 Err(_) => (),
             }
+
+            let new_displayed_progress_percentage = (((i + 1) * 100) / number_of_games) as i32;
+            if new_displayed_progress_percentage > displayed_progress_percentage {
+                displayed_progress_percentage = new_displayed_progress_percentage;
+                if self.is_verbose {
+                    print!(
+                        "\rCompleted {}% of {} simulations",
+                        new_displayed_progress_percentage, number_of_games
+                    );
+                    stdout.flush().unwrap();
+                }
+            }
         }
+
+        self.write_line_if_verbose("");
 
         self.write_line_if_verbose(
             &format!(

@@ -9,6 +9,7 @@ mod game_state_records_providers;
 mod games;
 mod internal;
 mod persistence;
+mod simulating;
 mod structs;
 mod training;
 mod traits;

@@ -27,10 +27,10 @@ impl<'a, SerializedGameState: BasicSerializedGameState, ErrorType>
 {
     fn process_game_report(
         &self,
-        game_report: GameReport<SerializedGameState>,
+        game_report: &mut GameReport<SerializedGameState>,
     ) -> Result<(), ErrorType> {
         for game_report_processor in &self.game_report_processors {
-            game_report_processor.process_game_report(game_report.clone())?;
+            game_report_processor.process_game_report(game_report)?;
         }
 
         return Ok(());

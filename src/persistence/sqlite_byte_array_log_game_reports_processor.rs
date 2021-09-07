@@ -32,10 +32,10 @@ impl SqliteByteArrayLogGameReportsProcessor {
 }
 
 impl GameReportsProcessor<Vec<u8>, ()> for SqliteByteArrayLogGameReportsProcessor {
-    fn process_game_report(&self, game_report: GameReport<Vec<u8>>) -> Result<(), ()> {
+    fn process_game_report(&self, game_report: &mut GameReport<Vec<u8>>) -> Result<(), ()> {
         self.pending_game_reports_ref_cell
             .borrow_mut()
-            .push(game_report);
+            .push(game_report.clone());
         if self.pending_game_reports_ref_cell.borrow().len() >= self.max_batch_size {
             self.try_commit_pending_updates_in_background(self.max_batch_size as usize);
         }

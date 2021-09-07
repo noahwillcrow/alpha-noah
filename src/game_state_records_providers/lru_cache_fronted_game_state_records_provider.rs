@@ -6,10 +6,11 @@ use crate::traits::{
     PendingUpdatesManager,
 };
 use lru::LruCache;
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::cmp;
 use std::collections::HashSet;
 use std::thread;
+use std::time;
 
 const CAPACITY_CLEARANCE_DIVISOR: usize = 5;
 
@@ -35,6 +36,20 @@ impl<'a, SerializedGameState: BasicSerializedGameState>
             game_state_records_dal: game_state_records_dal,
         };
     }
+
+    fn safe_get_lru_cache_mut(
+        &self,
+    ) -> RefMut<LruCache<SerializedGameState, (GameStateRecord, GameStateRecord)>> {
+        loop {
+            match self.lru_cache_ref_cell.try_borrow_mut() {
+                Ok(value) => return value,
+                Err(_) => {
+                    println!("Failed to get lru cache mutable reference!?");
+                    thread::sleep(time::Duration::from_millis(10));
+                }
+            }
+        }
+    }
 }
 
 impl<'a, SerializedGameState: BasicSerializedGameState + Send + Send + Sync> PendingUpdatesManager
@@ -48,19 +63,20 @@ impl<'a, SerializedGameState: BasicSerializedGameState + Send + Send + Sync> Pen
         let mut increment_tasks: Vec<
             IncrementPersistedGameStateRecordValuesTask<SerializedGameState>,
         > = vec![];
-        'while_loop: while increment_tasks.len() < max_number_to_commit {
-            match self.lru_cache_ref_cell.borrow_mut().pop_lru() {
-                Some((serialized_game_state, (_, pending_updates_game_state_record))) => {
-                    increment_tasks.push(IncrementPersistedGameStateRecordValuesTask {
-                        serialized_game_state: serialized_game_state,
-                        draws_count_addend: pending_updates_game_state_record.draws_count,
-                        losses_count_addend: pending_updates_game_state_record.losses_count,
-                        wins_count_addend: pending_updates_game_state_record.wins_count,
-                    });
-                }
-                None => {
-                    break 'while_loop;
-                }
+        let mut lru_cache = self.safe_get_lru_cache_mut();
+
+        while let Some((serialized_game_state, (_, pending_updates_game_state_record))) =
+            lru_cache.pop_lru()
+        {
+            increment_tasks.push(IncrementPersistedGameStateRecordValuesTask {
+                serialized_game_state: serialized_game_state,
+                draws_count_addend: pending_updates_game_state_record.draws_count,
+                losses_count_addend: pending_updates_game_state_record.losses_count,
+                wins_count_addend: pending_updates_game_state_record.wins_count,
+            });
+
+            if increment_tasks.len() == max_number_to_commit {
+                break;
             }
         }
 
@@ -80,47 +96,55 @@ impl<'a, SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
     ) -> Option<GameStateRecord> {
         let original_game_state_record: GameStateRecord;
 
-        match self
-            .lru_cache_ref_cell
-            .borrow_mut()
-            .get(serialized_game_state)
+        let mut pending_updates_count_to_commit = 0;
+
         {
-            Some((original_game_state_record, pending_updates_game_state_record)) => {
-                return Some(GameStateRecord::new(
-                    original_game_state_record.draws_count
-                        + pending_updates_game_state_record.draws_count,
-                    original_game_state_record.losses_count
-                        + pending_updates_game_state_record.losses_count,
-                    original_game_state_record.wins_count
-                        + pending_updates_game_state_record.wins_count,
-                ))
-            }
-            None => match self
-                .game_state_records_dal
-                .get_game_state_record(serialized_game_state)
-            {
-                Some(dal_game_state_record) => {
-                    original_game_state_record = dal_game_state_record.clone()
+            let mut lru_cache = self.safe_get_lru_cache_mut();
+
+            match lru_cache.get(serialized_game_state) {
+                Some((original_game_state_record, pending_updates_game_state_record)) => {
+                    return Some(GameStateRecord::new(
+                        original_game_state_record.draws_count
+                            + pending_updates_game_state_record.draws_count,
+                        original_game_state_record.losses_count
+                            + pending_updates_game_state_record.losses_count,
+                        original_game_state_record.wins_count
+                            + pending_updates_game_state_record.wins_count,
+                    ))
                 }
-                None => original_game_state_record = GameStateRecord::new_zeros(),
-            },
+                None => match self
+                    .game_state_records_dal
+                    .get_game_state_record(serialized_game_state)
+                {
+                    Some(dal_game_state_record) => {
+                        original_game_state_record = dal_game_state_record.clone()
+                    }
+                    None => original_game_state_record = GameStateRecord::new_zeros(),
+                },
+            }
+
+            // Must be a value that wasn't in the cache yet
+
+            lru_cache.put(
+                serialized_game_state.clone(),
+                (
+                    original_game_state_record.clone(),
+                    GameStateRecord::new_zeros(),
+                ),
+            );
+
+            if lru_cache.len() >= self.max_capacity {
+                pending_updates_count_to_commit = cmp::max(
+                    self.max_capacity / CAPACITY_CLEARANCE_DIVISOR,
+                    lru_cache.len() - (self.max_capacity - 1),
+                );
+            }
         }
 
         // Must be a value that wasn't in the cache yet
-        if self.lru_cache_ref_cell.borrow().len() >= self.max_capacity {
-            self.try_commit_pending_updates_in_background(cmp::max(
-                self.max_capacity / CAPACITY_CLEARANCE_DIVISOR,
-                self.lru_cache_ref_cell.borrow().len() - (self.max_capacity - 1),
-            ));
+        if pending_updates_count_to_commit > 0 {
+            self.try_commit_pending_updates_in_background(pending_updates_count_to_commit);
         }
-
-        self.lru_cache_ref_cell.borrow_mut().put(
-            serialized_game_state.clone(),
-            (
-                original_game_state_record.clone(),
-                GameStateRecord::new_zeros(),
-            ),
-        );
 
         return Some(original_game_state_record);
     }
@@ -130,73 +154,83 @@ impl<'a, SerializedGameState: BasicSerializedGameState + Send + Send + Sync>
     GameReportsProcessor<SerializedGameState, ()>
     for LruCacheFrontedGameStateRecordsProvider<'a, SerializedGameState>
 {
-    fn process_game_report(&self, game_report: GameReport<SerializedGameState>) -> Result<(), ()> {
+    fn process_game_report(
+        &self,
+        game_report: &mut GameReport<SerializedGameState>,
+    ) -> Result<(), ()> {
         let did_draw = game_report.winning_player_index == -1;
 
-        let mut already_updated_game_state_updates: HashSet<GameStateUpdate<SerializedGameState>> =
-            HashSet::new();
-        for game_state_update in game_report.game_state_updates.iter() {
-            if already_updated_game_state_updates.contains(&game_state_update) {
-                continue;
-            }
+        let mut pending_updates_count_to_commit = 0;
 
-            already_updated_game_state_updates.insert(game_state_update.clone());
+        {
+            let mut lru_cache = self.safe_get_lru_cache_mut();
 
-            let did_win =
-                game_report.winning_player_index == game_state_update.responsible_player_index;
-            let mut is_in_cache = false;
-            let new_cache_value: (GameStateRecord, GameStateRecord);
-            match self
-                .lru_cache_ref_cell
-                .borrow_mut()
-                .get(&game_state_update.new_serialized_game_state)
-            {
-                Some((original_game_state_record, pending_updates_game_state_record)) => {
-                    is_in_cache = true;
-                    new_cache_value = (
-                        original_game_state_record.clone(),
-                        GameStateRecord::new(
-                            pending_updates_game_state_record.draws_count
-                                + if did_draw { 1 } else { 0 },
-                            pending_updates_game_state_record.losses_count
-                                + if !did_draw && !did_win { 1 } else { 0 },
-                            pending_updates_game_state_record.wins_count
-                                + if did_win { 1 } else { 0 },
-                        ),
-                    );
+            let mut already_updated_game_state_updates: HashSet<
+                GameStateUpdate<SerializedGameState>,
+            > = HashSet::new();
+            for game_state_update in game_report.game_state_updates.iter() {
+                if already_updated_game_state_updates.contains(&game_state_update) {
+                    continue;
                 }
-                None => match self
-                    .game_state_records_dal
-                    .get_game_state_record(&game_state_update.new_serialized_game_state)
-                {
-                    Some(game_state_record) => {
+
+                already_updated_game_state_updates.insert(game_state_update.clone());
+
+                let did_win =
+                    game_report.winning_player_index == game_state_update.responsible_player_index;
+                let mut is_in_cache = false;
+                let new_cache_value: (GameStateRecord, GameStateRecord);
+                match lru_cache.get(&game_state_update.new_serialized_game_state) {
+                    Some((original_game_state_record, pending_updates_game_state_record)) => {
+                        is_in_cache = true;
                         new_cache_value = (
-                            game_state_record.clone(),
+                            original_game_state_record.clone(),
                             GameStateRecord::new(
-                                if did_draw { 1 } else { 0 },
-                                if !did_draw && !did_win { 1 } else { 0 },
-                                if did_win { 1 } else { 0 },
+                                pending_updates_game_state_record.draws_count
+                                    + if did_draw { 1 } else { 0 },
+                                pending_updates_game_state_record.losses_count
+                                    + if !did_draw && !did_win { 1 } else { 0 },
+                                pending_updates_game_state_record.wins_count
+                                    + if did_win { 1 } else { 0 },
                             ),
                         );
                     }
-                    None => {
-                        new_cache_value =
-                            (GameStateRecord::new_zeros(), GameStateRecord::new_zeros())
-                    }
-                },
-            }
+                    None => match self
+                        .game_state_records_dal
+                        .get_game_state_record(&game_state_update.new_serialized_game_state)
+                    {
+                        Some(game_state_record) => {
+                            new_cache_value = (
+                                game_state_record.clone(),
+                                GameStateRecord::new(
+                                    if did_draw { 1 } else { 0 },
+                                    if !did_draw && !did_win { 1 } else { 0 },
+                                    if did_win { 1 } else { 0 },
+                                ),
+                            );
+                        }
+                        None => {
+                            new_cache_value =
+                                (GameStateRecord::new_zeros(), GameStateRecord::new_zeros())
+                        }
+                    },
+                }
 
-            if !is_in_cache && self.lru_cache_ref_cell.borrow().len() >= self.max_capacity {
-                self.try_commit_pending_updates_in_background(cmp::max(
-                    self.max_capacity / CAPACITY_CLEARANCE_DIVISOR,
-                    self.lru_cache_ref_cell.borrow().len() - (self.max_capacity - 1),
-                ));
-            }
+                if !is_in_cache && lru_cache.len() >= self.max_capacity {
+                    pending_updates_count_to_commit = cmp::max(
+                        self.max_capacity / CAPACITY_CLEARANCE_DIVISOR,
+                        lru_cache.len() - (self.max_capacity - 1),
+                    );
+                }
 
-            self.lru_cache_ref_cell.borrow_mut().put(
-                game_state_update.new_serialized_game_state.clone(),
-                new_cache_value,
-            );
+                lru_cache.put(
+                    game_state_update.new_serialized_game_state.clone(),
+                    new_cache_value,
+                );
+            }
+        }
+
+        if pending_updates_count_to_commit > 0 {
+            self.try_commit_pending_updates_in_background(pending_updates_count_to_commit);
         }
 
         return Ok(());

@@ -1,2 +1,2 @@
-mod standard_trainer;
-pub use standard_trainer::StandardTrainer;
+mod torch_net_trainer;
+pub use torch_net_trainer::TorchNetTrainer;

@@ -13,7 +13,7 @@ pub trait CLIGameStateFormatter<GameState: BasicGameState> {
 pub trait GameReportsProcessor<SerializedGameState: BasicSerializedGameState, ErrorType> {
     fn process_game_report(
         &self,
-        game_report: GameReport<SerializedGameState>,
+        game_report: &mut GameReport<SerializedGameState>,
     ) -> Result<(), ErrorType>;
 }
 

@@ -1,5 +1,7 @@
-mod byte_array_game_state_serializer;
-pub use byte_array_game_state_serializer::ByteArrayGameStateSerializer;
+mod byte_array_game_state_serialization;
+pub use byte_array_game_state_serialization::{
+    ByteArrayGameStateDeserializer, ByteArrayGameStateSerializer,
+};
 
 mod cli_game_state_formatter;
 pub use cli_game_state_formatter::CLIGameStateFormatter;
@@ -14,6 +16,9 @@ mod game_rules_authority;
 pub use game_rules_authority::GameRulesAuthority;
 
 mod internal;
+
+mod torch_net;
+pub use torch_net::TorchNet;
 
 mod transform_game_state_to_tensor;
 pub use transform_game_state_to_tensor::transform_game_state_to_tensor;

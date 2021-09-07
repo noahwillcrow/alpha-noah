@@ -5,6 +5,7 @@ pub mod game_runners;
 pub mod game_state_records_providers;
 mod internal;
 pub mod persistence;
+pub mod simulating;
 pub mod structs;
 pub mod training;
 pub mod traits;
