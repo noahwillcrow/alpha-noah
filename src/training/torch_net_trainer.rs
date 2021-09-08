@@ -3,9 +3,11 @@ use crate::traits::{
     BasicGameState, BasicSerializedGameState, GameReportsProcessor, GameStateDeserializer,
     PendingUpdatesManager,
 };
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::thread;
 use tch::{nn, nn::OptimizerConfig, Tensor};
+
+const MAX_PENDING_UPDATES_COUNT: u32 = 1000;
 
 pub struct TorchNetTrainer<
     'a,
@@ -15,6 +17,7 @@ pub struct TorchNetTrainer<
     file_name: &'a str,
     game_state_deserializer: &'a dyn GameStateDeserializer<GameState, SerializedGameState>,
     optimizer_ref_cell: RefCell<nn::Optimizer<nn::Adam>>,
+    pending_updates_count_cell: Cell<u32>,
     torch_net: &'a dyn nn::Module,
     transform_game_state_to_tensor: &'a dyn Fn(i32, &GameState) -> Tensor,
     var_store: &'a nn::VarStore,
@@ -34,6 +37,7 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
             file_name: file_name,
             game_state_deserializer: game_state_deserializer,
             optimizer_ref_cell: RefCell::new(nn::Adam::default().build(var_store, 1e-4).unwrap()),
+            pending_updates_count_cell: Cell::new(0),
             torch_net: torch_net,
             transform_game_state_to_tensor: transform_game_state_to_tensor,
             var_store: var_store,
@@ -79,6 +83,12 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
                 .backward_step(&loss_tensor);
         }
 
+        self.pending_updates_count_cell
+            .set(self.pending_updates_count_cell.get() + 1);
+        if self.pending_updates_count_cell.get() >= MAX_PENDING_UPDATES_COUNT {
+            self.try_commit_pending_updates_in_background(0);
+        }
+
         return Ok(());
     }
 }
@@ -91,7 +101,9 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
         _max_number_to_commit: usize,
     ) -> std::thread::JoinHandle<()> {
         match self.var_store.save(self.file_name) {
-            Ok(_) => (),
+            Ok(_) => {
+                self.pending_updates_count_cell.set(0);
+            }
             Err(_) => (),
         };
 

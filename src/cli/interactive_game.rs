@@ -168,7 +168,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 .run_simulations(
                     1,
                     games::checkers::create_initial_game_state,
-                    &turn_takers,
+                    &mut (|| turn_takers.clone()),
                     -1,
                     true,
                 )
@@ -250,7 +250,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
                 .run_simulations(
                     1,
                     games::tic_tac_toe::create_initial_game_state,
-                    &turn_takers,
+                    &mut (|| turn_takers.clone()),
                     -1,
                     true,
                 )

@@ -4,7 +4,7 @@ use crate::traits::{
 };
 use chrono::Local;
 use std::io::{stdout, Write};
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 
 pub struct StandardSimulator<
     'a,
@@ -46,11 +46,11 @@ impl<
         };
     }
 
-    pub fn run_simulations(
+    pub fn run_simulations<'b>(
         &mut self,
         number_of_games: u32,
         create_initial_game_state: fn() -> GameState,
-        turn_takers: &Vec<&dyn TurnTaker<GameState>>,
+        create_turn_takers: &mut dyn FnMut() -> Vec<&'b dyn TurnTaker<GameState>>,
         max_number_of_turns: i32,
         is_reaching_max_number_of_turns_a_draw: bool,
     ) -> Result<(), GameReportsPersisterErrorType> {
@@ -79,9 +79,10 @@ impl<
         let mut displayed_progress_percentage: i32 = -1;
         let simulations_start_instant = Instant::now();
         for i in 0..number_of_games {
+            let turn_takers = create_turn_takers();
             let run_game_result = self.base_game_runner.run_game(
                 create_initial_game_state(),
-                turn_takers,
+                &turn_takers,
                 max_number_of_turns,
                 is_reaching_max_number_of_turns_a_draw,
             );
@@ -95,7 +96,7 @@ impl<
                     }
                     None => inconclusive_games_count += 1,
                 },
-                Err(_) => (),
+                Err(err) => println!("uh? {:?}", err),
             }
 
             let new_displayed_progress_percentage = (((i + 1) * 100) / number_of_games) as i32;

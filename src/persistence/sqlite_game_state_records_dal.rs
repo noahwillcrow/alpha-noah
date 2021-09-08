@@ -10,6 +10,7 @@ use std::thread;
 const MAX_ATTEMPTS_PER_UPDATE: u8 = 3;
 
 pub struct SqliteGameStateRecordsDAL {
+    is_saving_enabled: bool,
     game_name: String,
     read_only_connection: Connection,
     sqlite_db_path: String,
@@ -23,10 +24,19 @@ impl SqliteGameStateRecordsDAL {
         let read_only_connection = Connection::open(&sqlite_db_path)?;
 
         return Ok(SqliteGameStateRecordsDAL {
+            is_saving_enabled: true,
             game_name: String::from(game_name),
             read_only_connection: read_only_connection,
             sqlite_db_path: String::from(sqlite_db_path),
         });
+    }
+
+    pub fn get_is_saving_enabled(&self) -> bool {
+        return self.is_saving_enabled;
+    }
+
+    pub fn set_is_saving_enabled(&mut self, is_saving_enabled: bool) {
+        self.is_saving_enabled = is_saving_enabled;
     }
 }
 
@@ -54,10 +64,15 @@ impl GameStateRecordUpdatesPersister<Vec<u8>> for SqliteGameStateRecordsDAL {
         &self,
         increment_tasks: Vec<IncrementPersistedGameStateRecordValuesTask<Vec<u8>>>,
     ) -> thread::JoinHandle<()> {
+        let is_saving_enabled = self.is_saving_enabled;
         let sqlite_db_path = self.sqlite_db_path.clone();
         let game_name = self.game_name.clone();
 
         return thread::spawn(move || {
+            if !is_saving_enabled {
+                return;
+            }
+
             let mut write_connection: Connection;
             match Connection::open(&sqlite_db_path) {
                 Ok(opened_connection) => {
