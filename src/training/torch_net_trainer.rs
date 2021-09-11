@@ -5,7 +5,7 @@ use crate::traits::{
 };
 use std::cell::{Cell, RefCell};
 use std::thread;
-use tch::{nn, nn::OptimizerConfig, Tensor};
+use tch::{nn, nn::OptimizerConfig, Device, Tensor};
 
 const MAX_PENDING_UPDATES_COUNT: u32 = 1000;
 
@@ -14,6 +14,7 @@ pub struct TorchNetTrainer<
     GameState: BasicGameState,
     SerializedGameState: BasicSerializedGameState,
 > {
+    device: Device,
     file_name: &'a str,
     game_state_deserializer: &'a dyn GameStateDeserializer<GameState, SerializedGameState>,
     optimizer_ref_cell: RefCell<nn::Optimizer<nn::Adam>>,
@@ -27,6 +28,7 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
     TorchNetTrainer<'a, GameState, SerializedGameState>
 {
     pub fn new(
+        device: Device,
         file_name: &'a str,
         game_state_deserializer: &'a dyn GameStateDeserializer<GameState, SerializedGameState>,
         torch_net: &'a dyn nn::Module,
@@ -34,6 +36,7 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
         transform_game_state_to_tensor: &'a dyn Fn(i32, &GameState) -> Tensor,
     ) -> TorchNetTrainer<'a, GameState, SerializedGameState> {
         return TorchNetTrainer {
+            device: device,
             file_name: file_name,
             game_state_deserializer: game_state_deserializer,
             optimizer_ref_cell: RefCell::new(nn::Adam::default().build(var_store, 1e-4).unwrap()),
@@ -74,9 +77,11 @@ impl<'a, GameState: BasicGameState, SerializedGameState: BasicSerializedGameStat
             } else {
                 -1
             };
-            let result_tensor = Tensor::of_slice(&[result_value as f32]).view([1, 1]);
+            let result_tensor = Tensor::of_slice(&[result_value as f32])
+                .view([1, 1])
+                .to(self.device);
 
-            let prediction_tensor = self.torch_net.forward(&game_state_tensor);
+            let prediction_tensor = self.torch_net.forward(&game_state_tensor.to(self.device));
             let loss_tensor = (result_tensor - prediction_tensor).pow(2);
             self.optimizer_ref_cell
                 .borrow_mut()

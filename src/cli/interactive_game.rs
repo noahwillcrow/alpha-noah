@@ -94,6 +94,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             let torch_net = games::checkers::TorchNet::new(&torch_var_store.root());
             torch_var_store.load("checkers-var-store.weights").unwrap();
             let torch_net_trainer = TorchNetTrainer::new(
+                torch_var_store.device(),
                 "checkers-var-store.weights",
                 &game_state_deserializer,
                 &torch_net,
@@ -128,6 +129,7 @@ pub fn interactive_game(args: Vec<String>) -> Result<(), ()> {
             );
 
             let game_state_weights_calculator = CnnGameStateWeightsCalculator::new(
+                torch_var_store.device(),
                 &torch_net,
                 &games::checkers::transform_game_state_to_tensor,
             );

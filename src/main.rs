@@ -1,4 +1,5 @@
 use argparse;
+use tch;
 
 mod cli;
 mod composites;
@@ -36,6 +37,8 @@ fn main() -> Result<(), ()> {
         ap.stop_on_first_argument(true);
         ap.parse_args_or_exit();
     }
+
+    tch::maybe_init_cuda();
 
     args.insert(0, format!("command {:?}", command));
     match command {

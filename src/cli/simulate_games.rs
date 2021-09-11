@@ -109,9 +109,11 @@ pub fn simulate_games<'a>(args: Vec<String>) -> Result<(), ()> {
             let game_state_deserializer = games::checkers::ByteArrayGameStateDeserializer {};
 
             let mut torch_var_store = nn::VarStore::new(Device::cuda_if_available());
+            println!("{:?}", torch_var_store.device());
             torch_var_store.load("checkers-var-store.weights").unwrap();
             let torch_net = games::checkers::TorchNet::new(&torch_var_store.root());
             let torch_net_trainer = TorchNetTrainer::new(
+                torch_var_store.device(),
                 "checkers-var-store.weights",
                 &game_state_deserializer,
                 &torch_net,
@@ -143,6 +145,7 @@ pub fn simulate_games<'a>(args: Vec<String>) -> Result<(), ()> {
                     visits_deficit_weight,
                 );
             let torch_net_game_state_weights_calculator = CnnGameStateWeightsCalculator::new(
+                torch_var_store.device(),
                 &torch_net,
                 &games::checkers::transform_game_state_to_tensor,
             );
@@ -151,42 +154,42 @@ pub fn simulate_games<'a>(args: Vec<String>) -> Result<(), ()> {
                 StandardTurnBasedGameRunner::new(&game_rules_authority, &game_state_serializer);
 
             let turn_takers_sets = vec![
-                vec![
-                    WeightedRandomSelectionTurnTaker::new(
-                        &game_rules_authority,
-                        &torch_net_game_state_weights_calculator,
-                        0,
-                    ),
-                    WeightedRandomSelectionTurnTaker::new(
-                        &game_rules_authority,
-                        &game_state_record_game_state_weights_calculator,
-                        1,
-                    ),
-                ],
-                vec![
-                    WeightedRandomSelectionTurnTaker::new(
-                        &game_rules_authority,
-                        &game_state_record_game_state_weights_calculator,
-                        0,
-                    ),
-                    WeightedRandomSelectionTurnTaker::new(
-                        &game_rules_authority,
-                        &torch_net_game_state_weights_calculator,
-                        1,
-                    ),
-                ],
                 // vec![
-                //     WeightedRandomSelectionTurnTaker::new(
+                //     BestWeightSelectionTurnTaker::new(
                 //         &game_rules_authority,
                 //         &torch_net_game_state_weights_calculator,
                 //         0,
                 //     ),
-                //     WeightedRandomSelectionTurnTaker::new(
+                //     BestWeightSelectionTurnTaker::new(
+                //         &game_rules_authority,
+                //         &game_state_record_game_state_weights_calculator,
+                //         1,
+                //     ),
+                // ],
+                // vec![
+                //     BestWeightSelectionTurnTaker::new(
+                //         &game_rules_authority,
+                //         &game_state_record_game_state_weights_calculator,
+                //         0,
+                //     ),
+                //     BestWeightSelectionTurnTaker::new(
                 //         &game_rules_authority,
                 //         &torch_net_game_state_weights_calculator,
                 //         1,
                 //     ),
                 // ],
+                vec![
+                    WeightedRandomSelectionTurnTaker::new(
+                        &game_rules_authority,
+                        &torch_net_game_state_weights_calculator,
+                        0,
+                    ),
+                    WeightedRandomSelectionTurnTaker::new(
+                        &game_rules_authority,
+                        &torch_net_game_state_weights_calculator,
+                        1,
+                    ),
+                ],
             ];
             let mut game_number = 0;
 
